@@ -9,6 +9,9 @@ import "@material/web/progress/linear-progress.js";
 //import { Radio } from '@material/md-radio';
 import "@material/web/textfield/outlined-text-field.js";
 import "@material/web/radio/radio.js";
+import "@material/web/button/outlined-button.js";
+import "@material/web/menu/menu.js";
+import "@material/web/menu/menu-item.js";
 
 import "../yp-file-upload/yp-file-upload.js";
 import "../yp-file-upload/yp-file-upload-icon.js";
@@ -161,6 +164,9 @@ export class YpPostPoints extends YpBaseElementWithLogin {
 
   @property({ type: Array })
   storedPoints: Array<YpPointData> | undefined;
+
+  @property({ type: String })
+  fallacyFilter: "all" | "with" | "without" = "all";
 
   loadedPointIds: Record<number, boolean> = {};
 
@@ -895,7 +901,7 @@ export class YpPostPoints extends YpBaseElementWithLogin {
             ? html`
                 <lit-virtualizer
                   id="list${type}"
-                  .items=${points}
+                  .items=${this._filterPoints(points)}
                   .layout="${FlowLayout}"
                   .scrollTarget="${window}"
                   .renderItem=${this.renderPointItem.bind(this)}
@@ -951,8 +957,56 @@ export class YpPostPoints extends YpBaseElementWithLogin {
       : nothing}`;
   }
 
+  _filterPoints(points: Array<YpPointData> | undefined): Array<YpPointData> {
+    if (!points || this.fallacyFilter === "all") return points || [];
+
+    return points.filter((point) => {
+      const hasFallacies = (point as any).fallacyLabels && (point as any).fallacyLabels.length > 0;
+      if (this.fallacyFilter === "with") {
+        return hasFallacies;
+      } else if (this.fallacyFilter === "without") {
+        return !hasFallacies;
+      }
+      return true;
+    });
+  }
+
+  _setFallacyFilter(filter: "all" | "with" | "without") {
+    this.fallacyFilter = filter;
+    this.requestUpdate();
+  }
+
+  renderFallacyFilter() {
+    return html`
+      <div class="fallacy-filter layout horizontal center-center" style="margin: 16px 0; gap: 8px;">
+        <md-outlined-button
+          ?selected="${this.fallacyFilter === 'all'}"
+          @click="${() => this._setFallacyFilter('all')}"
+        >
+          <md-icon slot="icon">list</md-icon>
+          Tutti
+        </md-outlined-button>
+        <md-outlined-button
+          ?selected="${this.fallacyFilter === 'with'}"
+          @click="${() => this._setFallacyFilter('with')}"
+        >
+          <md-icon slot="icon">warning</md-icon>
+          Con fallacie
+        </md-outlined-button>
+        <md-outlined-button
+          ?selected="${this.fallacyFilter === 'without'}"
+          @click="${() => this._setFallacyFilter('without')}"
+        >
+          <md-icon slot="icon">check_circle</md-icon>
+          Senza fallacie
+        </md-outlined-button>
+      </div>
+    `;
+  }
+
   renderPointInfo() {
     return html`
+      ${this.renderFallacyFilter()}
       <div
         class="pointInfo layout vertical center-center"
         ?hidden="${(this.post.Group.configuration?.hidePointAgainst &&

@@ -1,8 +1,10 @@
 import { html, css, LitElement, nothing } from "lit";
-import { property, customElement } from "lit/decorators.js";
+import { property, customElement, query } from "lit/decorators.js";
 import "@material/web/icon/icon.js";
 import "@material/web/iconbutton/icon-button.js";
 import "@material/web/button/text-button.js";
+import "./yp-fallacy-comments-dialog.js";
+import type { YpFallacyCommentsDialog } from "./yp-fallacy-comments-dialog.js";
 
 interface DelibAiFallacy {
   label: string;
@@ -23,6 +25,9 @@ export class YpFallacyIndicator extends LitElement {
 
   @property({ type: Object })
   feedbackState: Record<string, { helpful: boolean | null; commentCount: number }> = {};
+
+  @query("yp-fallacy-comments-dialog")
+  private commentsDialog!: YpFallacyCommentsDialog;
 
   static override get styles() {
     return css`
@@ -184,13 +189,46 @@ export class YpFallacyIndicator extends LitElement {
   }
 
   _openComments(fallacyLabel: string) {
-    this.dispatchEvent(
-      new CustomEvent("open-fallacy-comments", {
-        detail: { pointId: this.pointId, fallacyLabel },
-        bubbles: true,
-        composed: true,
-      })
-    );
+    if (this.commentsDialog) {
+      this.commentsDialog.pointId = this.pointId;
+      this.commentsDialog.fallacyLabel = fallacyLabel;
+      this.commentsDialog.open();
+    }
+  }
+
+  override async connectedCallback() {
+    super.connectedCallback();
+    // Load comment counts when component is connected
+    if (this.pointId) {
+      await this._loadCommentCounts();
+    }
+  }
+
+  private async _loadCommentCounts() {
+    if (!this.pointId) return;
+
+    try {
+      const response = await window.serverApi.getFallacyCommentCounts(this.pointId);
+      const counts = response.counts || {};
+
+      // Update feedbackState with comment counts
+      const newState: Record<string, { helpful: boolean | null; commentCount: number }> = {};
+      this.fallacies.forEach(fallacy => {
+        newState[fallacy.label] = {
+          helpful: this.feedbackState[fallacy.label]?.helpful || null,
+          commentCount: counts[fallacy.label] || 0
+        };
+      });
+      this.feedbackState = newState;
+      this.requestUpdate();
+    } catch (error) {
+      console.error("Failed to load comment counts:", error);
+    }
+  }
+
+  private _handleCommentAdded() {
+    // Reload comment counts when a new comment is added
+    this._loadCommentCounts();
   }
 
   override render() {
@@ -275,6 +313,10 @@ export class YpFallacyIndicator extends LitElement {
             `
           : nothing}
       </div>
+
+      <yp-fallacy-comments-dialog
+        @comment-added="${this._handleCommentAdded}"
+      ></yp-fallacy-comments-dialog>
     `;
   }
 }

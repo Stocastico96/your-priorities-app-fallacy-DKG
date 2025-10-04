@@ -57,7 +57,6 @@ router.post(
 // Get feedback stats for a point's fallacies
 router.get(
   "/:pointId/feedback",
-  auth.can("view point"),
   async function (req, res) {
     try {
       const { pointId } = req.params;
@@ -150,7 +149,6 @@ router.post(
 // Get comments for a point's fallacies
 router.get(
   "/:pointId/comments",
-  auth.can("view point"),
   async function (req, res) {
     try {
       const { pointId } = req.params;
@@ -187,7 +185,6 @@ router.get(
 // Get comment counts per fallacy for a point
 router.get(
   "/:pointId/comment-counts",
-  auth.can("view point"),
   async function (req, res) {
     try {
       const { pointId } = req.params;

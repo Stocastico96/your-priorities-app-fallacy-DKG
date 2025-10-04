@@ -47,12 +47,15 @@ export class AudioAnalysis {
     minDecibels: number = -100,
     maxDecibels: number = -30,
   ): AudioAnalysisOutputType {
-    if (!fftResult) {
-      fftResult = new Float32Array(analyser.frequencyBinCount);
-      analyser.getFloatFrequencyData(fftResult);
+    let workingFft: Float32Array<ArrayBuffer>;
+    if (fftResult) {
+      workingFft = fftResult as unknown as Float32Array<ArrayBuffer>;
+    } else {
+      workingFft = new Float32Array(analyser.frequencyBinCount) as Float32Array<ArrayBuffer>;
+      analyser.getFloatFrequencyData(workingFft);
     }
     const nyquistFrequency = sampleRate / 2;
-    const frequencyStep = (1 / fftResult.length) * nyquistFrequency;
+    const frequencyStep = (1 / workingFft.length) * nyquistFrequency;
     let outputValues: number[];
     let frequencies: number[];
     let labels: string[];
@@ -61,9 +64,9 @@ export class AudioAnalysis {
       const useFrequencies =
         analysisType === 'voice' ? voiceFrequencies : noteFrequencies;
       const aggregateOutput = Array(useFrequencies.length).fill(minDecibels);
-      for (let i = 0; i < fftResult.length; i++) {
+      for (let i = 0; i < workingFft.length; i++) {
         const frequency = i * frequencyStep;
-        const amplitude = fftResult[i];
+        const amplitude = workingFft[i];
         for (let n = useFrequencies.length - 1; n >= 0; n--) {
           if (frequency > useFrequencies[n]) {
             aggregateOutput[n] = Math.max(aggregateOutput[n], amplitude);
@@ -76,7 +79,7 @@ export class AudioAnalysis {
       labels =
         analysisType === 'voice' ? voiceFrequencyLabels : noteFrequencyLabels;
     } else {
-      outputValues = Array.from(fftResult);
+      outputValues = Array.from(workingFft);
       frequencies = outputValues.map((_, i) => frequencyStep * i);
       labels = frequencies.map((f) => `${f.toFixed(2)} Hz`);
     }
@@ -132,7 +135,7 @@ export class AudioAnalysis {
         const suspendTime = renderQuantumInSeconds * index;
         if (suspendTime < durationInSeconds) {
           offlineAudioContext.suspend(suspendTime).then(() => {
-            const fftResult = new Float32Array(analyser.frequencyBinCount);
+            const fftResult = new Float32Array(analyser.frequencyBinCount) as Float32Array<ArrayBuffer>;
             analyser.getFloatFrequencyData(fftResult);
             this.fftResults.push(fftResult);
             analyze(index + 1);

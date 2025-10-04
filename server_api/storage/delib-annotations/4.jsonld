@@ -1,0 +1,33 @@
+{
+  "@context": {
+    "delib": "https://schema.org/",
+    "icogov": "https://example.org/icogovontology#"
+  },
+  "@graph": [
+    {
+      "@id": "icogov:argument1",
+      "@type": "delib:CounterArgument",
+      "delib:name": "Critica alle motivazioni dell'avversario",
+      "delib:text": "Ritengo che le motivazioni addotte siano poco solide e basate su argomentazioni ormai superate.",
+      "delib:opposes": "icogov:opposedClaim",
+      "icogov:authoredBy": {
+        "@type": "delib:Stakeholder",
+        "@id": "icogov:userX"
+      },
+      "icogov:pertainsTo": {
+        "@type": "delib:Issue",
+        "@id": "icogov:issue1"
+      }
+    },
+    {
+      "@id": "icogov:opposedClaim",
+      "@type": "delib:Claim",
+      "delib:name": "Motivazioni ritenute valide"
+    },
+    {
+      "@id": "icogov:issue1",
+      "@type": "delib:Issue",
+      "delib:name": "Issue deliberativa non specificata"
+    }
+  ]
+}

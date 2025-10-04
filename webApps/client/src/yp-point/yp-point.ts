@@ -17,6 +17,7 @@ import "../common/yp-emoji-selector.js";
 
 import "../yp-magic-text/yp-magic-text.js";
 import "./yp-point-actions.js";
+import "./yp-fallacy-indicator.js";
 
 import { YpNavHelpers } from "../common/YpNavHelpers.js";
 import { YpBaseElement } from "../common/yp-base-element.js";
@@ -730,6 +731,15 @@ export class YpPoint extends YpBaseElement {
             : this.renderTextPoint()}
           ${this.showAdminComments ? this.renderAdminComments() : nothing}
           ${this.isEditing ? this.renderEditPoint() : nothing}
+
+          ${(this.point as any).fallacyLabels && (this.point as any).fallacyLabels.length > 0
+            ? html`
+                <yp-fallacy-indicator
+                  .pointId="${this.point.id}"
+                  .fallacies="${(this.point as any).fallacyLabels}"
+                ></yp-fallacy-indicator>
+              `
+            : nothing}
 
           <div
             class="layout horizontal actionContainer"

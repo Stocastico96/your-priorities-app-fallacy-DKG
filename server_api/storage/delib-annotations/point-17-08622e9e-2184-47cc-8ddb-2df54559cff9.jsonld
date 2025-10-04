@@ -1,0 +1,19 @@
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Claim",
+      "name": "Espressione di forte disaccordo",
+      "description": "Una dichiarazione che esprime un rifiuto categorico di un'affermazione precedente.",
+      "author": {
+        "@type": "Stakeholder",
+        "name": "Anonimo"
+      },
+      "stance": "opposes",
+      "pertainsTo": {
+        "@type": "Issue",
+        "name": "Argomento non specificato della discussione"
+      }
+    }
+  ]
+}

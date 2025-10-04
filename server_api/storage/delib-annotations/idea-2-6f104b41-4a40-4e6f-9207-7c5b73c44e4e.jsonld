@@ -1,0 +1,32 @@
+{
+  "@context": {
+    "delib": "https://schema.org/",
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "Issue": "delib:CreativeWork",
+    "Claim": "delib:Comment",
+    "authoredBy": {
+      "@id": "delib:author",
+      "@type": "@id"
+    },
+    "pertainsTo": {
+      "@id": "delib:about",
+      "@type": "@id"
+    }
+  },
+  "@graph": [
+    {
+      "@id": "#claim1",
+      "@type": "Claim",
+      "text": "Sono molto preoccupato per la situazione attuale.",
+      "authoredBy": {
+        "@type": "Stakeholder",
+        "name": "AnonymousParticipant"
+      },
+      "pertainsTo": {
+        "@type": "Issue",
+        "name": "Unspecific Issue of Concern"
+      }
+    }
+  ]
+}

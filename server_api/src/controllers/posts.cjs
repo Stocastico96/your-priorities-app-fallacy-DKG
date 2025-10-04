@@ -13,6 +13,7 @@ const {
   plausibleStatsProxy,
 } = require("../services/engine/analytics/plausible/manager.cjs");
 const { isValidDbId } = require("../utils/is_valid_db_id.cjs");
+var delibAiService = require("../services/moderation/delibAiService.cjs");
 
 var changePostCounter = function (req, postId, column, upDown, next) {
   models.Post.findOne({
@@ -1404,13 +1405,71 @@ router.post("/:groupId", auth.can("create post"), async function (req, res) {
                                   },
                                   "medium"
                                 );
-                                sendPostOrError(
-                                  res,
-                                  post,
-                                  "setupImages",
-                                  req.user,
-                                  error
-                                );
+                                (async () => {
+                                  // DelibAI analysis for new post (idea)
+                                  try {
+                                    const textToAnalyze =
+                                      (post.description && post.description.trim() !== ""
+                                        ? post.description
+                                        : post.name) || "";
+                                    if (textToAnalyze) {
+                                      const context = {
+                                        contentType: "idea",
+                                        text: textToAnalyze,
+                                        userId: req.user.id,
+                                        groupId: post.group_id,
+                                        ideaId: post.id,
+                                      };
+
+                                      const analysis = await delibAiService.analyzeContent(
+                                        context
+                                      );
+                                      await delibAiService.persistAnalysis(
+                                        context,
+                                        analysis
+                                      );
+
+                                      if (
+                                        analysis &&
+                                        delibAiService.shouldBlock(analysis.moderation)
+                                      ) {
+                                        await models.Post.update(
+                                          { status: "blocked" },
+                                          { where: { id: post.id } }
+                                        );
+                                      }
+
+                                      try {
+                                        post.setDataValue("delibAiAnalysis", {
+                                          fallacies:
+                                            analysis?.delibResult?.fallacies || [],
+                                          ontologyHints:
+                                            analysis?.delibResult?.ontologyHints || null,
+                                          perspectiveWarning:
+                                            analysis?.moderation?.decision ===
+                                              "block" ||
+                                            analysis?.moderation?.decision ===
+                                              "soft_warning",
+                                          suggestedRewrite:
+                                            analysis?.delibResult?.rewrite || null,
+                                        });
+                                      } catch (_) {}
+                                    }
+                                  } catch (analysisError) {
+                                    log.error("DelibAI analysis failed for post", {
+                                      err: analysisError,
+                                      context: "createPost",
+                                    });
+                                  }
+
+                                  sendPostOrError(
+                                    res,
+                                    post,
+                                    "setupImages",
+                                    req.user,
+                                    error
+                                  );
+                                })();
                               } else {
                                 sendPostOrError(
                                   res,

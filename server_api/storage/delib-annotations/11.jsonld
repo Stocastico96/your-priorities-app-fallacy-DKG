@@ -1,0 +1,12 @@
+{
+  "@context": "https://schema.org",
+  "@type": "Claim",
+  "name": "Espressione di forte frustrazione",
+  "description": "Un'affermazione emotiva che indica forte disappunto senza specificare un tema deliberativo",
+  "author": {
+    "@type": "Stakeholder",
+    "role": "Participant"
+  },
+  "emotionalTone": "high",
+  "dateCreated": "2023-10-05"
+}

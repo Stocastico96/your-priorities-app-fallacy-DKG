@@ -1,0 +1,32 @@
+{
+  "@context": {
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "deli": "http://example.org/deliberation/ontology/",
+    "xsd": "http://www.w3.org/2001/XMLSchema#"
+  },
+  "@graph": [
+    {
+      "@id": "deli:counterargument1",
+      "@type": "deli:CounterArgument",
+      "deli:opposes": "deli:claim1",
+      "deli:authoredBy": "deli:stakeholder1",
+      "deli:pertainsTo": "deli:issue1",
+      "deli:description": "Non sono d'accordo con queste motivazioni perché le ritengo poco attuali e non sufficientemente solide per supportare la proposta."
+    },
+    {
+      "@id": "deli:stakeholder1",
+      "@type": "deli:Stakeholder",
+      "deli:name": "Utente della piattaforma"
+    },
+    {
+      "@id": "deli:claim1",
+      "@type": "deli:Claim",
+      "deli:pertainsTo": "deli:issue1"
+    },
+    {
+      "@id": "deli:issue1",
+      "@type": "deli:Issue",
+      "deli:title": "Issue non specificata nel testo originale"
+    }
+  ]
+}

@@ -342,25 +342,27 @@ let indexCache = {
 
 
 async function replaceSiteData(indexFileData, req, useNewVersion) {
+  const domainConfig = (req && req.ypDomain && req.ypDomain.configuration) ? req.ypDomain.configuration : {};
+
   if (
     process.env.ZIGGEO_ENABLED &&
-    req.ypDomain.configuration.ziggeoApplicationToken
+    domainConfig.ziggeoApplicationToken
   ) {
     indexFileData = indexFileData.replace(
       '<html lang="en">',
       `<html lang="en">${ziggeoHeaders(
-        req.ypDomain.configuration.ziggeoApplicationToken
+        domainConfig.ziggeoApplicationToken
       )}`
     );
   }
 
   if (
-    req.ypDomain.configuration &&
-    req.ypDomain.configuration.preloadCssUrl
+    domainConfig &&
+    domainConfig.preloadCssUrl
   ) {
     indexFileData = indexFileData.replace(
       '<html lang="en">',
-      `<html lang="en"><link rel="stylesheet" href="${req.ypDomain.configuration.preloadCssUrl}">`
+      `<html lang="en"><link rel="stylesheet" href="${domainConfig.preloadCssUrl}">`
     );
   }
 
@@ -375,13 +377,13 @@ async function replaceSiteData(indexFileData, req, useNewVersion) {
 
   if (
     req.ypDomain &&
-    req.ypDomain.configuration &&
-    req.ypDomain.configuration.plausibleDataDomains &&
-    req.ypDomain.configuration.plausibleDataDomains.length > 5
+    domainConfig &&
+    domainConfig.plausibleDataDomains &&
+    domainConfig.plausibleDataDomains.length > 5
   ) {
     indexFileData = indexFileData.replace(
       plausibleReplaceKey,
-      getPlausibleCode(req.ypDomain.configuration.plausibleDataDomains)
+      getPlausibleCode(domainConfig.plausibleDataDomains)
     );
   } else {
     indexFileData = indexFileData.replace(plausibleReplaceKey, "");
@@ -391,13 +393,13 @@ async function replaceSiteData(indexFileData, req, useNewVersion) {
 
   if (
     req.ypDomain &&
-    req.ypDomain.configuration &&
-    req.ypDomain.configuration.ga4Tag &&
-    req.ypDomain.configuration.ga4Tag.length > 4
+    domainConfig &&
+    domainConfig.ga4Tag &&
+    domainConfig.ga4Tag.length > 4
   ) {
     indexFileData = indexFileData.replace(
       ga4TagKey,
-      getGA4Code(req.ypDomain.configuration.ga4Tag)
+      getGA4Code(domainConfig.ga4Tag)
     );
   } else {
     indexFileData = indexFileData.replace(ga4TagKey, "");

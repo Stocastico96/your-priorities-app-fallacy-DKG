@@ -1,0 +1,17 @@
+{
+  "@context": {
+    "ical": "https://www.w3.org/ns/ical#",
+    "delib": "https://ontology.deliberativeplatform.org/terms/"
+  },
+  "@graph": [
+    {
+      "@id": "delib:Post1",
+      "@type": "delib:Post",
+      "delib:authoredBy": {
+        "@id": "delib:Stakeholder1",
+        "@type": "delib:Stakeholder"
+      },
+      "delib:hasContent": "notizionaa"
+    }
+  ]
+}

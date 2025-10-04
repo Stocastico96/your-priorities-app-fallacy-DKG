@@ -794,4 +794,44 @@ export class YpServerApi extends YpServerApiBase {
       false
     );
   }
+
+  // Fallacy feedback and comments
+  public submitFallacyFeedback(pointId: number, fallacyLabel: string, isHelpful: boolean) {
+    return this.fetchWrapper(
+      this.baseUrlPath + `/fallacies/${pointId}/feedback`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ fallacyLabel, isHelpful }),
+      }
+    );
+  }
+
+  public getFallacyFeedback(pointId: number) {
+    return this.fetchWrapper(
+      this.baseUrlPath + `/fallacies/${pointId}/feedback`
+    );
+  }
+
+  public submitFallacyComment(pointId: number, fallacyLabel: string, comment: string) {
+    return this.fetchWrapper(
+      this.baseUrlPath + `/fallacies/${pointId}/comments`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ fallacyLabel, comment }),
+      }
+    );
+  }
+
+  public getFallacyComments(pointId: number, fallacyLabel?: string) {
+    const url = fallacyLabel
+      ? `${this.baseUrlPath}/fallacies/${pointId}/comments?fallacyLabel=${encodeURIComponent(fallacyLabel)}`
+      : `${this.baseUrlPath}/fallacies/${pointId}/comments`;
+    return this.fetchWrapper(url);
+  }
+
+  public getFallacyCommentCounts(pointId: number) {
+    return this.fetchWrapper(
+      this.baseUrlPath + `/fallacies/${pointId}/comment-counts`
+    );
+  }
 }

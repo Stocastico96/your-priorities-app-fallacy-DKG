@@ -1,0 +1,44 @@
+{
+  "@context": {
+    "delib": "https://schema.org/",
+    "rdf": "http://www.w3.org/1999/02/22-rdf-syntax-ns#",
+    "rdfs": "http://www.w3.org/2000/01/rdf-schema#",
+    "xsd": "http://www.w3.org/2001/XMLSchema#",
+    "Issue": "delib:Question",
+    "Claim": "delib:Comment",
+    "Evidence": "delib:Evidence",
+    "CounterArgument": "delib:Counterargument",
+    "Stakeholder": "delib:Person",
+    "PolicyOption": "delib:Action",
+    "Criterion": "delib:QualitativeValue",
+    "Stance": "delib:Opinion",
+    "supports": "delib:supports",
+    "opposes": "delib:opposes",
+    "cites": "delib:cites",
+    "hasEvidence": "delib:hasEvidence",
+    "authoredBy": "delib:author",
+    "pertainsTo": "delib:about"
+  },
+  "@graph": [
+    {
+      "@id": "#claim1",
+      "@type": "Claim",
+      "authoredBy": {
+        "@type": "Stakeholder",
+        "name": "Utente"
+      },
+      "pertainsTo": {
+        "@id": "#issue1",
+        "@type": "Issue",
+        "name": "Polarizzazione del dibattito"
+      },
+      "Stance": "Opposizione forte",
+      "opposes": "#counterargument1"
+    },
+    {
+      "@id": "#counterargument1",
+      "@type": "CounterArgument",
+      "description": "Opinioni diverse da quella dell'autore"
+    }
+  ]
+}

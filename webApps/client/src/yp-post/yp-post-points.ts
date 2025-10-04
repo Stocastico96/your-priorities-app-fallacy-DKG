@@ -17,8 +17,10 @@ import "../common/yp-emoji-selector.js";
 import { YpFileUpload } from "../yp-file-upload/yp-file-upload.js";
 import { YpEmojiSelector } from "../common/yp-emoji-selector.js";
 import "../yp-point/yp-point.js";
+import "../yp-point/yp-delib-ai-banner.js";
 import { YpFormattingHelpers } from "../common/YpFormattingHelpers.js";
 import { YpBaseElementWithLogin } from "../common/yp-base-element-with-login.js";
+import type { DelibAiAnalysis } from "../yp-point/yp-delib-ai-banner.js";
 //import { RangeChangedEvent } from '@lit-labs/virtualizer/Virtualizer.js';
 import { LitVirtualizer } from "@lit-labs/virtualizer";
 import { FlowLayout } from "@lit-labs/virtualizer/layouts/flow.js";
@@ -144,6 +146,12 @@ export class YpPostPoints extends YpBaseElementWithLogin {
 
   @property({ type: String })
   hasCurrentUpAudio: string | undefined;
+
+  @property({ type: Object })
+  currentDelibAiAnalysis: DelibAiAnalysis | undefined;
+
+  @property({ type: String })
+  currentDelibAiFieldType: "Up" | "Down" | "Mobile" | undefined;
 
   @property({ type: String })
   hasCurrentDownAudio: string | undefined;
@@ -858,6 +866,16 @@ export class YpPostPoints extends YpBaseElementWithLogin {
             </div>
 
             ${mobile ? this.renderMobilePointSelection() : nothing}
+
+            ${this.currentDelibAiAnalysis && this.currentDelibAiFieldType === type
+              ? html`
+                  <yp-delib-ai-banner
+                    .analysis="${this.currentDelibAiAnalysis}"
+                    @apply-rewrite="${this._handleApplyRewrite}"
+                    @dismiss-banner="${this._handleDismissBanner}"
+                  ></yp-delib-ai-banner>
+                `
+              : nothing}
 
             <div class="addPointFab layout horizontal center-center">
               <md-filled-button
@@ -1833,6 +1851,7 @@ export class YpPostPoints extends YpBaseElementWithLogin {
   }
 
   addPointUp() {
+    this.currentDelibAiFieldType = "Up";
     this.addPoint(
       this.textValueUp,
       1,
@@ -1843,6 +1862,7 @@ export class YpPostPoints extends YpBaseElementWithLogin {
   }
 
   addPointDown() {
+    this.currentDelibAiFieldType = "Down";
     this.addPoint(
       this.textValueDown,
       -1,
@@ -1853,6 +1873,7 @@ export class YpPostPoints extends YpBaseElementWithLogin {
   }
 
   addMobilePointUpOrDown() {
+    this.currentDelibAiFieldType = "Mobile";
     if (this.pointUpOrDownSelected == "pointFor") {
       this.addPoint(
         this.textValueMobileUpOrDown,
@@ -1889,6 +1910,29 @@ export class YpPostPoints extends YpBaseElementWithLogin {
           content: content,
           value: value,
         });
+
+        // DEBUG: Force alert to check if delibAiAnalysis is in response
+        const hasAnalysis = !!(point as any).delibAiAnalysis;
+        console.log('[DelibAI] Point creation response:', {
+          pointId: point.id,
+          hasDelibAiAnalysis: hasAnalysis,
+          delibAiAnalysis: (point as any).delibAiAnalysis,
+          allKeys: Object.keys(point)
+        });
+
+        if (!hasAnalysis) {
+          console.error('[DelibAI] MISSING delibAiAnalysis! Keys in response:', Object.keys(point));
+        }
+
+        // Capture DelibAI analysis if present in response
+        if ((point as any).delibAiAnalysis) {
+          this.currentDelibAiAnalysis = (point as any).delibAiAnalysis;
+          console.log('[DelibAI] Analysis captured, calling requestUpdate:', this.currentDelibAiAnalysis);
+          console.log('[DelibAI] smallReady:', this.smallReady, 'should show banner');
+          this.requestUpdate();
+        } else {
+          console.warn('[DelibAI] No delibAiAnalysis in point response');
+        }
       } catch (error: unknown) {
         if ((error as YpErrorData).offlineSendLater) {
           this.addPointDisabled = false;
@@ -2118,5 +2162,32 @@ export class YpPostPoints extends YpBaseElementWithLogin {
     } else {
       return false;
     }
+  }
+
+  _handleApplyRewrite(event: CustomEvent) {
+    const rewrite = event.detail.rewrite;
+    if (!rewrite) return;
+
+    // Apply rewrite to the appropriate field based on which type was used
+    if (this.currentDelibAiFieldType === "Up") {
+      const upField = this.$$("#up_point") as MdOutlinedTextField;
+      if (upField) upField.value = rewrite;
+    } else if (this.currentDelibAiFieldType === "Down") {
+      const downField = this.$$("#down_point") as MdOutlinedTextField;
+      if (downField) downField.value = rewrite;
+    } else if (this.currentDelibAiFieldType === "Mobile") {
+      const mobileField = this.$$("#mobile_point") as MdOutlinedTextField;
+      if (mobileField) mobileField.value = rewrite;
+    }
+
+    // Dismiss banner after applying rewrite
+    this.currentDelibAiAnalysis = undefined;
+    this.currentDelibAiFieldType = undefined;
+    this.requestUpdate();
+  }
+
+  _handleDismissBanner() {
+    this.currentDelibAiAnalysis = undefined;
+    this.requestUpdate();
   }
 }

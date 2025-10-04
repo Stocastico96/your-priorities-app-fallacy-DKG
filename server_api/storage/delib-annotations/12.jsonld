@@ -1,0 +1,47 @@
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Claim",
+      "id": "claim:1",
+      "name": "Valutazione positiva del partecipante",
+      "description": "Il testo esprime un forte apprezzamento per un partecipante",
+      "author": {
+        "@type": "Stakeholder",
+        "name": "Anonimo"
+      },
+      "stance": "supports",
+      "pertainsTo": "issue:1"
+    },
+    {
+      "@type": "Claim",
+      "id": "claim:2",
+      "name": "Valutazione negativa di altri partecipanti",
+      "description": "Il testo esprime una valutazione negativa di altri partecipanti, in particolare Simone",
+      "author": {
+        "@type": "Stakeholder",
+        "name": "Anonimo"
+      },
+      "stance": "opposes",
+      "pertainsTo": "issue:1"
+    },
+    {
+      "@type": "Issue",
+      "id": "issue:1",
+      "name": "Valutazione dei contributi nella piattaforma deliberativa",
+      "description": "Questioni relative alla qualità dei contributi dei partecipanti"
+    },
+    {
+      "@type": "Stakeholder",
+      "id": "stakeholder:1",
+      "name": "Anonimo",
+      "role": "Partecipante alla deliberazione"
+    },
+    {
+      "@type": "Stakeholder",
+      "id": "stakeholder:2",
+      "name": "Simone",
+      "role": "Partecipante alla deliberazione"
+    }
+  ]
+}

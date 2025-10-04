@@ -1,0 +1,24 @@
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Issue",
+      "@id": "issue:unknown",
+      "name": "Proposta non specificata",
+      "description": "L'oggetto della discussione non è stato identificato a causa del messaggio non costruttivo."
+    },
+    {
+      "@type": "Claim",
+      "@id": "claim:user_comment",
+      "name": "Commento negativo sulla proposta",
+      "description": "Un'affermazione che esprime forte disapprovazione verso una proposta non specificata.",
+      "author": {
+        "@type": "Stakeholder",
+        "@id": "stakeholder:anonymous",
+        "name": "Partecipante anonimo"
+      },
+      "pertainsTo": "issue:unknown",
+      "opposes": "issue:unknown"
+    }
+  ]
+}

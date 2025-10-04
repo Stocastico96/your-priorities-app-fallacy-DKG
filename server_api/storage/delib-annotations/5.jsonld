@@ -1,0 +1,42 @@
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Issue",
+      "@id": "issue:root",
+      "name": "Valutazione delle opinioni divergenti"
+    },
+    {
+      "@type": "Claim",
+      "@id": "claim:1",
+      "name": "Le opinioni diverse sono geniali",
+      "author": {
+        "@id": "stakeholder:author"
+      },
+      "pertainsTo": {
+        "@id": "issue:root"
+      }
+    },
+    {
+      "@type": "Stakeholder",
+      "@id": "stakeholder:author",
+      "name": "Anonimo"
+    },
+    {
+      "@type": "Criterion",
+      "@id": "criterion:1",
+      "name": "Valore intrinseco delle prospettive diverse",
+      "pertainsTo": {
+        "@id": "issue:root"
+      }
+    },
+    {
+      "@type": "Stance",
+      "@id": "stance:1",
+      "name": "Positivo verso il dissenso",
+      "supports": {
+        "@id": "claim:1"
+      }
+    }
+  ]
+}

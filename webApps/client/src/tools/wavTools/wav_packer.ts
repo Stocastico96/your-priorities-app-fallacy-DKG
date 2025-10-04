@@ -21,13 +21,11 @@ export class WavPacker {
   /**
    * Converts Float32Array of amplitude data to ArrayBuffer in Int16Array format
    */
-  static floatTo16BitPCM(float32Array: Float32Array): ArrayBuffer {
-    const buffer = new ArrayBuffer(float32Array.length * 2);
-    const view = new DataView(buffer);
-    let offset = 0;
-    for (let i = 0; i < float32Array.length; i++, offset += 2) {
+  static floatTo16BitPCM(float32Array: Float32Array): Int16Array {
+    const buffer = new Int16Array(float32Array.length);
+    for (let i = 0; i < float32Array.length; i++) {
       const s = Math.max(-1, Math.min(1, float32Array[i]));
-      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+      buffer[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
     }
     return buffer;
   }
@@ -70,33 +68,42 @@ export class WavPacker {
     }
 
     const { bitsPerSample, channels, data } = audio;
-    const output: (string | Uint8Array | Int16Array)[] = [
+    const toBlobBuffer = (view: Uint8Array): ArrayBuffer => {
+      const sliced = view.buffer.slice(view.byteOffset, view.byteOffset + view.byteLength);
+      return sliced instanceof ArrayBuffer ? sliced : new ArrayBuffer(sliced.byteLength);
+    };
+
+    const output: BlobPart[] = [
       // Header
       'RIFF',
-      this._packData(
-        1,
-        4 + (8 + 24) /* chunk 1 length */ + (8 + 8) /* chunk 2 length */
+      toBlobBuffer(
+        this._packData(
+          1,
+          4 + (8 + 24) /* chunk 1 length */ + (8 + 8) /* chunk 2 length */
+        )
       ), // Length
       'WAVE',
       // chunk 1
       'fmt ', // Sub-chunk identifier
-      this._packData(1, 16), // Chunk length
-      this._packData(0, 1), // Audio format (1 is linear quantization)
-      this._packData(0, channels.length),
-      this._packData(1, sampleRate),
-      this._packData(1, (sampleRate * channels.length * bitsPerSample) / 8), // Byte rate
-      this._packData(0, (channels.length * bitsPerSample) / 8),
-      this._packData(0, bitsPerSample),
+      toBlobBuffer(this._packData(1, 16)), // Chunk length
+      toBlobBuffer(this._packData(0, 1)), // Audio format (1 is linear quantization)
+      toBlobBuffer(this._packData(0, channels.length)),
+      toBlobBuffer(this._packData(1, sampleRate)),
+      toBlobBuffer(
+        this._packData(1, (sampleRate * channels.length * bitsPerSample) / 8)
+      ), // Byte rate
+      toBlobBuffer(this._packData(0, (channels.length * bitsPerSample) / 8)),
+      toBlobBuffer(this._packData(0, bitsPerSample)),
       // chunk 2
       'data', // Sub-chunk identifier
-      this._packData(
+      toBlobBuffer(this._packData(
         1,
         (channels[0].length * channels.length * bitsPerSample) / 8
-      ), // Chunk length
-      data,
+      )), // Chunk length
+      toBlobBuffer(new Uint8Array(data.buffer.slice(0))),
     ];
 
-    const blob = new Blob(output, { type: 'audio/mpeg' });
+    const blob = new Blob(output, { type: 'audio/wav' });
     const url = URL.createObjectURL(blob);
 
     return {

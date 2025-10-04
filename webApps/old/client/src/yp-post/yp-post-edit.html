@@ -265,6 +265,29 @@
           <section>
             <div class="layout vertical flex">
 
+              <!-- DelibAI Banner -->
+              <style>
+                .delibai-banner { border: 1px solid #ffd27f; background: #fff8e6; padding: 12px; border-radius: 8px; margin-bottom: 12px; }
+                .warning-chip { background: #ffe3e3; color: #b00020; padding: 6px 8px; border-radius: 12px; margin: 4px 6px 6px 0; display: inline-block; font-size: 12px; }
+                .hint-button { margin: 4px 6px 6px 0; }
+              </style>
+              <div id="delibai-banner" class="delibai-banner" hidden$="[[!delibAnalysis]]">
+                <div hidden$="[[!delibAnalysis.fallacies.length]]">
+                  <template is="dom-repeat" items="[[delibAnalysis.fallacies]]" as="f">
+                    <div class="warning-chip">⚠️ [[f.label]]: [[f.rationale]]</div>
+                  </template>
+                </div>
+                <div hidden$="[[!delibAnalysis.ontologyHints]]">
+                  <template is="dom-repeat" items="[[delibAnalysis.ontologyHints.explanations]]" as="hint">
+                    <paper-button class="hint-button" raised on-click="_insertOntologyHint">+ [[hint]]</paper-button>
+                  </template>
+                </div>
+                <div class="layout horizontal">
+                  <paper-button raised hidden$="[[!delibAnalysis.suggestedRewrite]]" on-click="applyRewrite">🔄 [[t('ai.rewrite')]]</paper-button>
+                  <paper-button raised on-click="dismissWarnings" style="margin-left: 8px;">✓ [[t('publishAnyway')]]</paper-button>
+                </div>
+              </div>
+
               <template is="dom-if" if="[[group.configuration.hideNameInputAndReplaceWith]]">
                 <input type="hidden" name="name" value="[[replacedName]]">
               </template>
@@ -769,6 +792,11 @@
         type: String,
         value: null
       }
+      ,
+      delibAnalysis: {
+        type: Object,
+        value: null
+      }
     },
 
     _hasLongSaveText: function (saveText) {
@@ -859,7 +887,7 @@
 
     listeners: {
       'iron-form-invalid': '_formInvalid',
-      'yp-custom-form-submit': '_customSubmit',
+      'yp-custom-form-submit': '_customSubmitDelibAi',
       'yp-skip-to-unique-id': '_skipToId',
       'yp-open-to-unique-id': '_openToId',
       'yp-goto-next-index': '_goToNextIndex'
@@ -1015,6 +1043,62 @@
       }
 
       return newPost && !hideNewPoint;
+    },
+
+    _customSubmitDelibAi: async function (value, valueB) {
+      // Run DelibAI pre-check for drafts
+      try {
+        const blocked = await this._delibAiPreSubmitCheck();
+        if (blocked) {
+          this.$.editDialog._showToast(this.t ? this.t('contentBlockedForToxicity') : 'Content blocked due to toxicity.');
+          return;
+        }
+      } catch (e) {
+        // Ignore failures, continue gracefully
+      }
+
+      if (this.group.configuration && this.group.configuration.structuredQuestionsJson) {
+        var answers = [];
+        this.liveQuestionIds.forEach(function (liveIndex) {
+          var questionElement = this.$$("#structuredQuestionContainer_"+liveIndex);
+          if (questionElement) {
+            answers.push(questionElement.getAnswer());
+          }
+        }.bind(this));
+        this.set('structuredAnswersJson', JSON.stringify(answers));
+        if (this.delibAnalysis && ((this.delibAnalysis.fallacies && this.delibAnalysis.fallacies.length) || this.delibAnalysis.ontologyHints)) {
+          return;
+        } else {
+          this.$.editDialog._reallySubmit();
+        }
+      } else if (this.structuredQuestions && this.structuredQuestions.length>0) {
+        var description="", answers="";
+        for (i=0 ; i<this.structuredQuestions.length; i+=1) {
+          description += this.structuredQuestions[i].question;
+          if (this.structuredQuestions[i].question && this.structuredQuestions[i].question[this.structuredQuestions[i].question.length-1]!=='?')
+            description += ':';
+          description += '\\n';
+          description += this.structuredQuestions[i].value;
+          answers+=this.structuredQuestions[i].value;
+          if (i!==this.structuredQuestions.length-1) {
+            answers+="%!#x";
+            description += '\\n\\n';
+          }
+        }
+        this.set('post.description', description);
+        this.set('structuredAnswers', answers);
+        if (this.delibAnalysis && ((this.delibAnalysis.fallacies && this.delibAnalysis.fallacies.length) || this.delibAnalysis.ontologyHints)) {
+          return;
+        } else {
+          this.$.editDialog._reallySubmit();
+        }
+      } else {
+        if (this.delibAnalysis && ((this.delibAnalysis.fallacies && this.delibAnalysis.fallacies.length) || this.delibAnalysis.ontologyHints)) {
+          return;
+        } else {
+          this.$.editDialog._reallySubmit();
+        }
+      }
     },
 
     _customSubmit: function (value, valueB) {
@@ -1181,16 +1265,49 @@
       }
     },
 
+    _insertOntologyHint: function (e) {
+      var hint = e.model && e.model.hint ? e.model.hint : '';
+      var desc = this.$$('#description');
+      if (desc && hint) {
+        desc.value = (desc.value || '') + '\n' + hint;
+      }
+    },
+
     _uploadedHeaderImageIdChanged: function (newValue) {
       if (newValue) {
         this.set('selectedCoverMediaType','image');
       }
     },
 
+    _logDelibEvent: function(eventName, properties) {
+      try {
+        var ajax = document.createElement('iron-ajax');
+        ajax.url = '/api/delib-ai/event';
+        ajax.method = 'POST';
+        ajax.contentType = 'application/json';
+        ajax.body = { eventName: eventName, properties: properties || {} };
+        ajax.generateRequest();
+      } catch(e) {}
+    },
+
     _nextOnEnter: function (event) {
       if (event.keyCode === 13) {
         this._searchMap();
       }
+    },
+
+    applyRewrite: function() {
+      if (this.delibAnalysis && this.delibAnalysis.suggestedRewrite) {
+        var desc = this.$$('#description');
+        if (desc) desc.value = this.delibAnalysis.suggestedRewrite;
+        this._logDelibEvent('DelibAI Rewrite Applied', { context: 'post-edit' });
+      }
+    },
+
+    dismissWarnings: function() {
+      this._logDelibEvent('DelibAI Warnings Dismissed', { context: 'post-edit' });
+      this.set('delibAnalysis', null);
+      this.$.editDialog._reallySubmit();
     },
 
     _getTabLength: function () {
@@ -1209,6 +1326,39 @@
       }
 
       return length;
+    },
+
+    _delibAiPreSubmitCheck: async function() {
+      try {
+        var text = (this.post && this.post.description) ? this.post.description : (this.post && this.post.name) ? this.post.name : '';
+        if (!text || text.trim()==='') { this.set('delibAnalysis', null); return false; }
+        const res = await fetch('/api/delib-ai/analyze', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          credentials: 'include',
+          body: JSON.stringify({ text: text, type: 'idea' })
+        });
+        if (!res.ok) { this.set('delibAnalysis', null); return false; }
+        const data = await res.json();
+        if (data.shouldBlock) {
+          this.set('delibAnalysis', null);
+          return true; // blocked
+        }
+        const hasHints = (data.fallacies && data.fallacies.length>0) || !!data.ontologyHints;
+        if (hasHints) {
+          this.set('delibAnalysis', {
+            fallacies: data.fallacies || [],
+            ontologyHints: data.ontologyHints || null,
+            suggestedRewrite: data.rewrite || null
+          });
+        } else {
+          this.set('delibAnalysis', null);
+        }
+        return false;
+      } catch (e) {
+        this.set('delibAnalysis', null);
+        return false;
+      }
     },
 
     _nextTab: function () {

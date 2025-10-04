@@ -1,0 +1,21 @@
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "CounterArgument",
+      "name": "Controargomento alla affermazione originale",
+      "description": "Un argomento che si oppone a una precedente affermazione",
+      "opposes": "Claim:1",
+      "authoredBy": {
+        "@type": "Stakeholder",
+        "name": "Partecipante anonimo"
+      },
+      "hasEvidence": []
+    },
+    {
+      "@type": "Claim",
+      "@id": "Claim:1",
+      "name": "Affermazione originale non specificata"
+    }
+  ]
+}

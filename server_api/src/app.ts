@@ -40,6 +40,8 @@ import points from "./controllers/points.cjs";
 import users from "./controllers/users.cjs";
 import categories from "./controllers/categories.cjs";
 import images from "./controllers/images.cjs";
+import delibAiRoutes from "./controllers/delibAi.cjs";
+import fallacies from "./controllers/fallacies.cjs";
 import externalIds from "./controllers/externalIds.cjs";
 import ratings from "./controllers/ratings.cjs";
 import bulkStatusUpdates from "./controllers/bulkStatusUpdates.cjs";
@@ -679,6 +681,9 @@ export class YourPrioritiesApi {
     }
     //@ts-ignore
     this.app.use(session(sessionConfig));
+
+    // Mount DelibAI API early under /api
+    this.app.use('/api/delib-ai', delibAiRoutes);
   }
 
   async initializeEsControllers() {
@@ -854,6 +859,7 @@ export class YourPrioritiesApi {
     this.app.use("/api/groups", groups);
     this.app.use("/api/posts", posts);
     this.app.use("/api/points", points);
+    this.app.use("/api/fallacies", fallacies);
     this.app.use("/api/images", images);
     this.app.use("/api/videos", videos);
     this.app.use("/api/audios", audios);

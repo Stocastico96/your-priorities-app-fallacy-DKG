@@ -1,0 +1,29 @@
+{
+  "@context": {
+    "delib": "https://schema.org/",
+    "icegov": "https://ontology.icegov.org/"
+  },
+  "@graph": [
+    {
+      "@id": "#claim1",
+      "@type": "icegov:CounterArgument",
+      "icegov:authoredBy": {
+        "@type": "icegov:Stakeholder",
+        "name": "AnonymousParticipant"
+      },
+      "icegov:opposes": "#unspecifiedClaim",
+      "icegov:pertainsTo": "#unspecifiedIssue",
+      "text": "Le motivazioni fornite sono futili e non attuali."
+    },
+    {
+      "@id": "#unspecifiedClaim",
+      "@type": "icegov:Claim",
+      "description": "La claim a cui l'utente si oppone, non specificata nel testo."
+    },
+    {
+      "@id": "#unspecifiedIssue",
+      "@type": "icegov:Issue",
+      "description": "La questione deliberativa in discussione, non specificata nel testo."
+    }
+  ]
+}

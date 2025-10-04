@@ -1,0 +1,14 @@
+{
+  "@context": "https://schema.org",
+  "@type": "Claim",
+  "name": "Espressione di forte disaccordo",
+  "description": "Una dichiarazione che esprime forte opposizione a un'affermazione precedente",
+  "author": {
+    "@type": "Stakeholder",
+    "name": "Anonimo"
+  },
+  "opposes": {
+    "@type": "Claim",
+    "name": "Affermazione precedente non specificata"
+  }
+}

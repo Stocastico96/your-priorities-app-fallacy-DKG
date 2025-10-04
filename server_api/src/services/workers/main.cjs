@@ -17,6 +17,7 @@ const similarities = require('./similarities.cjs');
 const reports = require('./reports.cjs');
 const marketing = require('./marketing.cjs');
 const fraudManagement = require('./fraud_management.cjs');
+const delibaiWorker = require('./delibai_worker.cjs');
 
 log.info("Dirname", {dirname: __dirname});
 
@@ -101,6 +102,11 @@ i18n
       marketing.process(job.data, done);
     });
 
+    // DelibAI post-processing (JSON-LD file + event)
+    queue.process('delibai-analysis', 2, function(job, done) {
+      delibaiWorker.process(job.data, done);
+    });
+
     import(
       "./generativeAi.js"
     ).then(({GenerativeAiWorker}) => {
@@ -110,4 +116,3 @@ i18n
       });
     });
   });
-

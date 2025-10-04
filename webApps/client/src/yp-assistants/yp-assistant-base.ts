@@ -353,15 +353,20 @@ export abstract class YpAssistantBase extends YpChatbotBase {
 
         try {
           if (this.userIsSpeaking) {
-            frequencies = this.mediaRecorder?.getFrequencies("voice")?.values!;
+            const voiceFrequencies = this.mediaRecorder?.getFrequencies("voice")?.values;
+            if (voiceFrequencies) {
+              frequencies = voiceFrequencies as unknown as Float32Array<ArrayBuffer>;
+            }
             // GO throught the frequencies and lower them all by 30%
             for (let i = 0; i < frequencies.length; i++) {
               frequencies[i] = frequencies[i] * 0.15;
             }
             color = "#ffdc2f";
           } else if (this.aiIsSpeaking) {
-            frequencies =
-              this.wavStreamPlayer?.getFrequencies("voice")?.values!;
+            const aiFrequencies = this.wavStreamPlayer?.getFrequencies("voice")?.values;
+            if (aiFrequencies) {
+              frequencies = aiFrequencies as unknown as Float32Array<ArrayBuffer>;
+            }
             color = "#2ecc71";
             for (let i = 0; i < frequencies.length; i++) {
               frequencies[i] = frequencies[i] * 0.15;
@@ -661,25 +666,36 @@ export abstract class YpAssistantBase extends YpChatbotBase {
     this.isRecording = false;
   }
 
-  static floatTo16BitPCM(float32Array: Float32Array) {
-    const buffer = new ArrayBuffer(float32Array.length * 2);
-    const view = new DataView(buffer);
-    let offset = 0;
-    for (let i = 0; i < float32Array.length; i++, offset += 2) {
-      let s = Math.max(-1, Math.min(1, float32Array[i]));
-      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7fff, true);
+  static floatTo16BitPCM(float32Array: Float32Array): Int16Array {
+    const buffer = new Int16Array(float32Array.length);
+    for (let i = 0; i < float32Array.length; i++) {
+      const s = Math.max(-1, Math.min(1, float32Array[i]));
+      buffer[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
     }
     return buffer;
   }
 
-  static arrayBufferToBase64(arrayBuffer: ArrayBuffer | Iterable<number>) {
+  static arrayBufferToBase64(arrayBuffer: ArrayBuffer | ArrayBufferView | Iterable<number>) {
+    let workingBuffer: ArrayBuffer;
+
     if (arrayBuffer instanceof Float32Array) {
-      arrayBuffer = this.floatTo16BitPCM(arrayBuffer);
+      const int16 = this.floatTo16BitPCM(arrayBuffer);
+      workingBuffer = int16.buffer instanceof ArrayBuffer ? int16.buffer : new ArrayBuffer(int16.buffer.byteLength);
     } else if (arrayBuffer instanceof Int16Array) {
-      arrayBuffer = arrayBuffer.buffer;
+      workingBuffer = arrayBuffer.buffer instanceof ArrayBuffer ? arrayBuffer.buffer : new ArrayBuffer(arrayBuffer.buffer.byteLength);
+    } else if (arrayBuffer instanceof Uint8Array) {
+      workingBuffer = arrayBuffer.buffer instanceof ArrayBuffer ? arrayBuffer.buffer : new ArrayBuffer(arrayBuffer.buffer.byteLength);
+    } else if (arrayBuffer instanceof ArrayBuffer) {
+      workingBuffer = arrayBuffer;
+    } else if (Symbol.iterator in Object(arrayBuffer)) {
+      const typed = Uint8Array.from(arrayBuffer as Iterable<number>);
+      workingBuffer = typed.buffer;
+    } else {
+      throw new Error('Unsupported audio buffer type');
     }
+
     let binary = "";
-    let bytes = new Uint8Array(arrayBuffer as any);
+    let bytes = new Uint8Array(workingBuffer);
     const chunkSize = 0x8000; // 32KB chunk size
     for (let i = 0; i < bytes.length; i += chunkSize) {
       let chunk = bytes.subarray(i, i + chunkSize);

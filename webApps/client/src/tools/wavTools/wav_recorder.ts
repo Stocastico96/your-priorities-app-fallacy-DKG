@@ -133,7 +133,7 @@ export class WavRecorder {
         throw new Error(`Minimum "fromSampleRate" is 3000 (3kHz)`);
       }
       if (!data) {
-        data = WavPacker.floatTo16BitPCM(float32Array) as Int16Array;
+        data = WavPacker.floatTo16BitPCM(float32Array);
       }
       const audio = {
         bitsPerSample: 16,

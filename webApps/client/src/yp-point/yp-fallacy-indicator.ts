@@ -130,8 +130,12 @@ export class YpFallacyIndicator extends LitElement {
         --md-icon-button-icon-size: 18px;
       }
 
-      .feedback-btn.active {
-        color: var(--md-sys-color-primary, #1976d2);
+      md-icon-button.active-up {
+        --md-icon-button-icon-color: #4caf50;
+      }
+
+      md-icon-button.active-down {
+        --md-icon-button-icon-color: #f44336;
       }
 
       .comment-count {
@@ -151,7 +155,9 @@ export class YpFallacyIndicator extends LitElement {
   }
 
   async _handleFeedback(fallacyLabel: string, helpful: boolean) {
-    // Toggle: if clicking the same button, remove feedback
+    if (!this.pointId) return;
+
+    // Toggle: if clicking the same button, remove vote (neutral position)
     const currentValue = this.feedbackState[fallacyLabel]?.helpful;
     const newValue = currentValue === helpful ? null : helpful;
 
@@ -165,14 +171,17 @@ export class YpFallacyIndicator extends LitElement {
     };
     this.requestUpdate();
 
-    // Call API
+    // Call API only if we have a value to submit
     try {
       if (newValue !== null) {
         await window.serverApi.submitFallacyFeedback(
-          this.pointId!,
+          this.pointId,
           fallacyLabel,
           newValue
         );
+      } else {
+        // TODO: Call API to remove the vote if needed
+        // For now, just keep the local state as null
       }
     } catch (error) {
       console.error("Failed to submit fallacy feedback:", error);
@@ -180,7 +189,7 @@ export class YpFallacyIndicator extends LitElement {
       this.feedbackState = {
         ...this.feedbackState,
         [fallacyLabel]: {
-          helpful: currentValue,
+          helpful: currentValue ?? null,
           commentCount: this.feedbackState[fallacyLabel]?.commentCount || 0,
         },
       };
@@ -208,21 +217,27 @@ export class YpFallacyIndicator extends LitElement {
     if (!this.pointId) return;
 
     try {
-      const response = await window.serverApi.getFallacyCommentCounts(this.pointId);
-      const counts = response.counts || {};
+      // Load both comment counts and user's feedback in parallel
+      const [countsResponse, feedbackResponse] = await Promise.all([
+        window.serverApi.getFallacyCommentCounts(this.pointId),
+        window.serverApi.getFallacyFeedback(this.pointId)
+      ]);
 
-      // Update feedbackState with comment counts
+      const counts = countsResponse.counts || {};
+      const userFeedback = feedbackResponse.userFeedback || {};
+
+      // Update feedbackState with comment counts and user's votes
       const newState: Record<string, { helpful: boolean | null; commentCount: number }> = {};
       this.fallacies.forEach(fallacy => {
         newState[fallacy.label] = {
-          helpful: this.feedbackState[fallacy.label]?.helpful || null,
+          helpful: userFeedback[fallacy.label] ?? null,
           commentCount: counts[fallacy.label] || 0
         };
       });
       this.feedbackState = newState;
       this.requestUpdate();
     } catch (error) {
-      console.error("Failed to load comment counts:", error);
+      console.error("Failed to load comment counts or feedback:", error);
     }
   }
 
@@ -278,7 +293,7 @@ export class YpFallacyIndicator extends LitElement {
                         <span class="feedback-label">Accurato?</span>
                         <md-icon-button
                           class="feedback-btn ${feedback?.helpful === true
-                            ? "active"
+                            ? "active-up"
                             : ""}"
                           @click="${() =>
                             this._handleFeedback(fallacy.label, true)}"
@@ -287,7 +302,7 @@ export class YpFallacyIndicator extends LitElement {
                         </md-icon-button>
                         <md-icon-button
                           class="feedback-btn ${feedback?.helpful === false
-                            ? "active"
+                            ? "active-down"
                             : ""}"
                           @click="${() =>
                             this._handleFeedback(fallacy.label, false)}"

@@ -210,10 +210,11 @@ var loadPointWithAll = function (pointId, callback) {
               );
             },
             (parallelCallback) => {
-              // Load fallacy labels for this point
+              // Load fallacy labels for this point (both point and comment types)
+              log.info("Loading fallacy labels for point", { pointId: point.id });
               models.CommentFallacyLabels.findOne({
                 where: {
-                  content_type: "point",
+                  content_type: { [models.Sequelize.Op.in]: ["point", "comment"] },
                   content_id: point.id,
                 },
                 attributes: ["labels", "scores", "advice", "rewrite"],
@@ -221,9 +222,15 @@ var loadPointWithAll = function (pointId, callback) {
               })
                 .then((fallacyData) => {
                   if (fallacyData) {
+                    log.info("Fallacy data found for point", {
+                      pointId: point.id,
+                      fallacyCount: fallacyData.labels?.length || 0
+                    });
                     outPoint.setDataValue("fallacyLabels", fallacyData.labels || []);
                     outPoint.setDataValue("fallacyAdvice", fallacyData.advice);
                     outPoint.setDataValue("fallacyRewrite", fallacyData.rewrite);
+                  } else {
+                    log.info("No fallacy data found for point", { pointId: point.id });
                   }
                   parallelCallback();
                 })

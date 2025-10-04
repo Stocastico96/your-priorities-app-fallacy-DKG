@@ -161,7 +161,13 @@ const persistPerspective = async (context, moderation) => {
 };
 
 const persistDelibResult = async (context, analysis) => {
-  if (!analysis || !analysis.delibResult) return;
+  if (!analysis || !analysis.delibResult) {
+    log.info("Skipping persist - no analysis or delibResult", {
+      hasAnalysis: !!analysis,
+      hasDelibResult: !!analysis?.delibResult,
+    });
+    return;
+  }
 
   const targetId =
     context.contentType === "comment"
@@ -170,23 +176,46 @@ const persistDelibResult = async (context, analysis) => {
       ? context.pointId
       : context.ideaId;
 
-  if (!targetId) return;
+  if (!targetId) {
+    log.warn("Skipping persist - no targetId", { context });
+    return;
+  }
 
   const delibResult = analysis.delibResult;
 
-  await models.CommentFallacyLabels.create({
-    content_type: context.contentType,
-    content_id: targetId,
-    labels: delibResult.fallacies || [],
-    scores: (delibResult.fallacies || []).map((f) => ({
-      label: f.label,
-      score: f.score,
-    })),
-    advice: delibResult.advice,
-    rewrite: delibResult.rewrite,
-    model: OPENAI_MODEL,
-    provider: "openrouter",
+  log.info("Persisting DelibAI result", {
+    contentType: context.contentType,
+    contentId: targetId,
+    fallacyCount: delibResult.fallacies?.length || 0,
   });
+
+  try {
+    const created = await models.CommentFallacyLabels.create({
+      content_type: context.contentType,
+      content_id: targetId,
+      labels: delibResult.fallacies || [],
+      scores: (delibResult.fallacies || []).map((f) => ({
+        label: f.label,
+        score: f.score,
+      })),
+      advice: delibResult.advice,
+      rewrite: delibResult.rewrite,
+      model: OPENAI_MODEL,
+      provider: "openrouter",
+    });
+    log.info("DelibAI result persisted successfully", {
+      id: created.id,
+      contentType: context.contentType,
+      contentId: targetId,
+    });
+  } catch (error) {
+    log.error("Failed to persist DelibAI result", {
+      error: error.message,
+      stack: error.stack,
+      context,
+    });
+    throw error;
+  }
 
   if (delibResult.ontologyHints && delibResult.ontologyHints.jsonld) {
     await ensureStorageDir();

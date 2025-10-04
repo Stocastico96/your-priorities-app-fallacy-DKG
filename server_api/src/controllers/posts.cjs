@@ -1005,6 +1005,40 @@ const sendPostPoints = (req, res, redisKey) => {
                       }
                     );
                   },
+                  (parallelCallback) => {
+                    // Load fallacies for all points
+                    const pointIds = points.map(p => p.id);
+                    models.CommentFallacyLabels.findAll({
+                      where: {
+                        content_type: { $in: ["point", "comment"] },
+                        content_id: { $in: pointIds },
+                      },
+                      attributes: ["content_id", "labels", "scores", "advice", "rewrite"],
+                      order: [["created_at", "DESC"]],
+                    })
+                      .then((fallacies) => {
+                        const fallacyMap = {};
+                        fallacies.forEach(f => {
+                          if (!fallacyMap[f.content_id]) {
+                            fallacyMap[f.content_id] = f;
+                          }
+                        });
+
+                        points.forEach(point => {
+                          const fallacyData = fallacyMap[point.id];
+                          if (fallacyData) {
+                            point.setDataValue("fallacyLabels", fallacyData.labels || []);
+                            point.setDataValue("fallacyAdvice", fallacyData.advice);
+                            point.setDataValue("fallacyRewrite", fallacyData.rewrite);
+                          }
+                        });
+                        parallelCallback();
+                      })
+                      .catch((error) => {
+                        log.warn("Failed to load fallacies for points", { error });
+                        parallelCallback(); // Don't fail the whole request
+                      });
+                  },
                 ],
                 (error) => {
                   if (error) {

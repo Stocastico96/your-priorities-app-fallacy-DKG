@@ -28,7 +28,7 @@ const perspectiveClient = process.env.GOOGLE_PERSPECTIVE_API_KEY
   : null;
 
 const OPENAI_MODEL =
-  process.env.OPENAI_STREAMING_MODEL_NAME || "google/gemini-2.0-flash-exp:free";
+  process.env.OPENAI_STREAMING_MODEL_NAME || "meta-llama/llama-3.1-70b-instruct:free";
 
 const FALLACY_BLOCK_THRESHOLD = parseFloat(
   process.env.PERSPECTIVE_BLOCK_THRESHOLD || "0.85"
@@ -80,11 +80,42 @@ const perspectiveModerate = async (context) => {
 };
 
 const buildDelibPrompt = (context) => {
-  return `Analizza questo commento deliberativo e rispondi SOLO con JSON: {"fallacies":[{"label":"","score":0.0,"rationale":""}],"advice":"","rewrite":"","ontologyHints":{"explanations":[]}}.
+  return `Sei un esperto di logica argomentativa. Analizza il testo per identificare fallacie logiche.
 
-Identifica fallacie logiche, proponi riformulazione costruttiva, classifica come Issue/Claim/Evidence/CounterArgument.
+IMPORTANTE: Sii SEVERO nell'identificare le fallacie. Anche lievi attacchi personali, generalizzazioni o linguaggio non costruttivo devono essere rilevati.
 
-TESTO: ${context.text}`;
+Rispondi SOLO con JSON valido (senza markdown, senza apici tripli, senza caratteri extra).
+
+Formato:
+{"fallacies":[{"label":"Nome","score":0.85,"rationale":"spiegazione"}],"advice":"","rewrite":"testo riformulato"}
+
+Fallacie da cercare (sii SEVERO):
+- Ad Hominem: qualsiasi attacco alla persona invece che all'argomento (es. "sei stupido", "non capisci niente", "idiota")
+- Appeal to Emotion: linguaggio emotivo invece che razionale
+- Hasty Generalization: generalizzazioni senza prove
+- Straw Man: distorcere l'argomento altrui
+- False Dilemma: presentare solo due opzioni
+
+Se trovi anche UNA sola fallacia, DEVI segnalarla con score >= 0.7
+
+Se il testo è perfettamente costruttivo e argomentato: {"fallacies":[],"advice":"","rewrite":""}
+
+REWRITE: NON dare consigli o spiegazioni. Riscrivi DIRETTAMENTE il testo in prima persona, mantenendo il significato ma in forma costruttiva.
+
+ESEMPI:
+- Input: "Sei un idiota, non capisci niente"
+  Rewrite: "Non sono d'accordo con questa posizione"
+
+- Input: "I cani sono meglio delle persone"
+  Rewrite: "Secondo me i cani hanno qualità straordinarie che a volte mancano in alcune persone"
+
+- Input: "Questa proposta è stupida"
+  Rewrite: "Questa proposta presenta alcuni problemi che andrebbero rivisti"
+
+TESTO:
+${context.text}
+
+RISPONDI SOLO IL JSON:`;
 };
 
 const runDelibAi = async (context) => {

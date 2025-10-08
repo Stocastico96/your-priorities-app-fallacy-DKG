@@ -78,10 +78,10 @@ export default {
     }),
     html({
       minify: true,
-      publicPath: '/',
+      publicPath: '/yp/',
       injectServiceWorker: true,
       extractAssets: false,
-      serviceWorkerPath: '/sw.js',
+      serviceWorkerPath: '/yp/sw.js',
     }),
     copy({
       targets: [

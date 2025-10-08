@@ -4,8 +4,10 @@ import { YpMediaHelpers } from "../common/YpMediaHelpers.js";
 import { YpCollection } from "../yp-collection/yp-collection.js";
 import { nothing, html, TemplateResult, LitElement, css } from "lit";
 import { customElement, property } from "lit/decorators.js";
+import { unsafeHTML } from "lit/directives/unsafe-html.js";
 
 import "@material/web/progress/linear-progress.js";
+import "@material/web/progress/circular-progress.js";
 //import { Radio } from '@material/md-radio';
 import "@material/web/textfield/outlined-text-field.js";
 import "@material/web/radio/radio.js";
@@ -155,6 +157,12 @@ export class YpPostPoints extends YpBaseElementWithLogin {
 
   @property({ type: String })
   currentDelibAiFieldType: "Up" | "Down" | "Mobile" | undefined;
+
+  @property({ type: Boolean })
+  isAnalyzingContent = false;
+
+  @property({ type: Object })
+  pendingPointData: { content: string; value: number; videoId?: number; audioId?: number } | undefined;
 
   @property({ type: String })
   hasCurrentDownAudio: string | undefined;
@@ -574,6 +582,43 @@ export class YpPostPoints extends YpBaseElementWithLogin {
           direction: rtl;
         }
 
+        .analyzing-banner {
+          background: var(--md-sys-color-primary-container);
+          color: var(--md-sys-color-on-primary-container);
+          border-radius: 12px;
+          border-left: 4px solid var(--md-sys-color-primary);
+          padding: 20px;
+          margin: 16px 0;
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        .analyzing-banner md-circular-progress {
+          --md-circular-progress-size: 40px;
+          --md-circular-progress-active-indicator-color: var(--md-sys-color-primary);
+        }
+
+        .analyzing-text {
+          flex: 1;
+        }
+
+        .analyzing-text strong {
+          font-size: 1em;
+          display: block;
+          margin-bottom: 8px;
+          color: var(--md-sys-color-on-primary-container);
+        }
+
+        .analyzing-text p {
+          margin: 4px 0;
+          line-height: 1.4;
+          font-size: 0.9em;
+          color: var(--md-sys-color-on-primary-container);
+          opacity: 0.9;
+        }
+
       `,
     ];
   }
@@ -873,7 +918,20 @@ export class YpPostPoints extends YpBaseElementWithLogin {
 
             ${mobile ? this.renderMobilePointSelection() : nothing}
 
-            ${this.currentDelibAiAnalysis && this.currentDelibAiFieldType === type
+            ${this.isAnalyzingContent && this.currentDelibAiFieldType === type
+              ? html`
+                  <div class="analyzing-banner">
+                    <md-circular-progress indeterminate></md-circular-progress>
+                    <div class="analyzing-text">
+                      <strong>🔍 Analisi logica in corso...</strong>
+                      <p>Stiamo verificando la presenza di fallacie argomentative nel tuo commento. Questo richiede solo qualche istante!</p>
+                      <p style="font-size: 0.9em; opacity: 0.8; margin-top: 8px;">${this._getRandomFallacyTip()}</p>
+                    </div>
+                  </div>
+                `
+              : nothing}
+
+            ${this.currentDelibAiAnalysis && !this.isAnalyzingContent && this.currentDelibAiFieldType === type
               ? html`
                   <yp-delib-ai-banner
                     .analysis="${this.currentDelibAiAnalysis}"
@@ -1953,69 +2011,134 @@ export class YpPostPoints extends YpBaseElementWithLogin {
     videoId: number | undefined,
     audioId: number | undefined
   ) {
+    console.log("🔥🔥🔥 NEW addPoint() called with content:", content);
     if (window.appUser.loggedIn() === true) {
       if (videoId) this.currentVideoId = videoId;
       else if (audioId) this.currentAudioId = audioId;
       this.addPointDisabled = true;
-      let point;
-      try {
-        point = await window.serverApi.addPoint(this.post.group_id, {
-          postId: this.post.id,
-          content: content,
-          value: value,
-        });
 
-        // DEBUG: Force alert to check if delibAiAnalysis is in response
-        const hasAnalysis = !!(point as any).delibAiAnalysis;
-        console.log('[DelibAI] Point creation response:', {
-          pointId: point.id,
-          hasDelibAiAnalysis: hasAnalysis,
-          delibAiAnalysis: (point as any).delibAiAnalysis,
-          allKeys: Object.keys(point)
-        });
+      // Store pending point data
+      this.pendingPointData = { content, value, videoId, audioId };
 
-        if (!hasAnalysis) {
-          console.error('[DelibAI] MISSING delibAiAnalysis! Keys in response:', Object.keys(point));
-        }
-
-        // Capture DelibAI analysis if present in response
-        if ((point as any).delibAiAnalysis) {
-          this.currentDelibAiAnalysis = (point as any).delibAiAnalysis;
-          console.log('[DelibAI] Analysis captured, calling requestUpdate:', this.currentDelibAiAnalysis);
-          console.log('[DelibAI] smallReady:', this.smallReady, 'should show banner');
-          this.requestUpdate();
-        } else {
-          console.warn('[DelibAI] No delibAiAnalysis in point response');
-        }
-      } catch (error: unknown) {
-        if ((error as YpErrorData).offlineSendLater) {
-          this.addPointDisabled = false;
-          this._clearTextValueDown();
-          this._clearTextValueUp();
-          this._clearTextValueMobileUpOrDown();
-        } else {
-          console.error(error);
-        }
-      }
-      point = this._preProcessPoints([point])[0];
-      if (this.currentVideoId) {
-        await window.serverApi.completeMediaPoint("videos", point.id, {
-          videoId: this.currentVideoId,
-          appLanguage: this.language,
-        });
-        window.appGlobals.showSpeechToTextInfoIfNeeded();
-      } else if (this.currentAudioId) {
-        await window.serverApi.completeMediaPoint("audios", point.id, {
-          videoId: this.currentAudioId,
-          appLanguage: this.language,
-        });
-        window.appGlobals.showSpeechToTextInfoIfNeeded();
-      }
-      this._completeNewPointResponse(point);
+      // Show loading and analyze content BEFORE saving
+      console.log("🔥 Setting isAnalyzingContent = true");
+      this.isAnalyzingContent = true;
       this.requestUpdate();
+
+      try {
+        // Call DelibAI analyze endpoint
+        console.log("🔥 Calling /api/delib-ai/analyze");
+        const analysisResponse = await fetch('/api/delib-ai/analyze', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            text: content,
+            type: 'point'
+          })
+        });
+
+        if (!analysisResponse.ok) {
+          throw new Error('Analysis request failed');
+        }
+
+        const analysisData = await analysisResponse.json();
+        console.log("🔥 Analysis response:", analysisData);
+        this.isAnalyzingContent = false;
+
+        // Check if there are fallacies or should block
+        const hasFallacies = analysisData.fallacies && analysisData.fallacies.length > 0;
+        const shouldBlock = analysisData.shouldBlock;
+        console.log("🔥 hasFallacies:", hasFallacies, "shouldBlock:", shouldBlock);
+
+        if (hasFallacies || shouldBlock) {
+          // Show analysis banner and wait for user decision
+          console.log("🔥 STOPPING - showing banner, NOT saving point");
+          this.currentDelibAiAnalysis = {
+            fallacies: analysisData.fallacies || [],
+            suggestedRewrite: analysisData.rewrite,
+            ontologyHints: analysisData.ontologyHints,
+            perspectiveWarning: shouldBlock
+          };
+          this.addPointDisabled = false; // Re-enable so user can interact with banner
+          this.requestUpdate();
+          return; // Stop here, wait for user to click "Use rewrite" or "Publish anyway"
+        }
+
+        // No fallacies, proceed with saving
+        console.log("🔥 No fallacies, saving point");
+        await this._savePoint(content, value);
+
+      } catch (error) {
+        console.error('🔥 Analysis failed:', error);
+        this.isAnalyzingContent = false;
+        // On analysis error, proceed with saving anyway
+        await this._savePoint(content, value);
+      }
     } else {
       window.appUser.loginForNewPoint(this, { content: content, value: value });
     }
+  }
+
+  async _savePoint(content: string, value: number) {
+    let point;
+    try {
+      const body: any = {
+        postId: this.post.id,
+        content: content,
+        value: value,
+      };
+
+      // If we have analysis from frontend, pass it to backend to avoid re-analyzing
+      if (this.currentDelibAiAnalysis) {
+        body.delibAnalysis = {
+          moderation: null, // We don't have perspective data in frontend
+          delibResult: {
+            fallacies: this.currentDelibAiAnalysis.fallacies || [],
+            rewrite: this.currentDelibAiAnalysis.suggestedRewrite || '',
+            advice: '',
+            ontologyHints: this.currentDelibAiAnalysis.ontologyHints || null,
+          }
+        };
+      }
+
+      point = await window.serverApi.addPoint(this.post.group_id, body);
+
+      // Clear all analysis and loading state after successful save
+      this.currentDelibAiAnalysis = undefined;
+      this.pendingPointData = undefined;
+      this.isAnalyzingContent = false;
+
+    } catch (error: unknown) {
+      if ((error as YpErrorData).offlineSendLater) {
+        this.addPointDisabled = false;
+        this._clearTextValueDown();
+        this._clearTextValueUp();
+        this._clearTextValueMobileUpOrDown();
+      } else {
+        console.error(error);
+      }
+      return;
+    }
+
+    point = this._preProcessPoints([point])[0];
+    if (this.currentVideoId) {
+      await window.serverApi.completeMediaPoint("videos", point.id, {
+        videoId: this.currentVideoId,
+        appLanguage: this.language,
+      });
+      window.appGlobals.showSpeechToTextInfoIfNeeded();
+    } else if (this.currentAudioId) {
+      await window.serverApi.completeMediaPoint("audios", point.id, {
+        videoId: this.currentAudioId,
+        appLanguage: this.language,
+      });
+      window.appGlobals.showSpeechToTextInfoIfNeeded();
+    }
+    this._completeNewPointResponse(point);
+    this.requestUpdate();
   }
 
   focusUpPoint() {
@@ -2218,30 +2341,56 @@ export class YpPostPoints extends YpBaseElementWithLogin {
     }
   }
 
+  _getRandomFallacyTip() {
+    const tips = [
+      '💡 Lo sapevi? <strong>Ad Hominem</strong>: attaccare la persona invece dell\'argomento.',
+      '💡 Lo sapevi? <strong>Straw Man</strong>: distorcere l\'argomento altrui per renderlo più facile da attaccare.',
+      '💡 Lo sapevi? <strong>False Dilemma</strong>: presentare solo due opzioni quando ce ne sono altre.',
+      '💡 Lo sapevi? <strong>Slippery Slope</strong>: affermare che un\'azione porterà inevitabilmente a conseguenze estreme.',
+      '💡 Lo sapevi? <strong>Hasty Generalization</strong>: trarre conclusioni da campioni troppo piccoli.',
+      '💡 Lo sapevi? <strong>Appeal to Authority</strong>: citare un\'autorità fuori dal suo campo di competenza.',
+      '💡 Lo sapevi? <strong>Appeal to Emotion</strong>: manipolare emozioni invece di usare argomenti logici.',
+      '💡 Lo sapevi? <strong>Bandwagon</strong>: affermare che qualcosa è vero perché "lo fanno tutti".',
+      '💡 Lo sapevi? <strong>Tu Quoque</strong>: evitare critiche accusando l\'altro di fare lo stesso.',
+      '💡 Lo sapevi? <strong>Post Hoc</strong>: assumere che correlazione implichi causalità.',
+    ];
+    return unsafeHTML(tips[Math.floor(Math.random() * tips.length)]);
+  }
+
   _handleApplyRewrite(event: CustomEvent) {
     const rewrite = event.detail.rewrite;
-    if (!rewrite) return;
+    if (!rewrite || !this.pendingPointData) return;
 
-    // Apply rewrite to the appropriate field based on which type was used
+    // Insert rewrite into text field so user can edit it
     if (this.currentDelibAiFieldType === "Up") {
-      const upField = this.$$("#up_point") as MdOutlinedTextField;
+      const upField = this.$$("#up_point") as any;
       if (upField) upField.value = rewrite;
     } else if (this.currentDelibAiFieldType === "Down") {
-      const downField = this.$$("#down_point") as MdOutlinedTextField;
+      const downField = this.$$("#down_point") as any;
       if (downField) downField.value = rewrite;
     } else if (this.currentDelibAiFieldType === "Mobile") {
-      const mobileField = this.$$("#mobile_point") as MdOutlinedTextField;
+      const mobileField = this.$$("#mobile_point") as any;
       if (mobileField) mobileField.value = rewrite;
     }
 
-    // Dismiss banner after applying rewrite
+    // Clear the analysis banner and pending data
     this.currentDelibAiAnalysis = undefined;
-    this.currentDelibAiFieldType = undefined;
+    this.pendingPointData = undefined;
+    this.addPointDisabled = false;
     this.requestUpdate();
   }
 
-  _handleDismissBanner() {
-    this.currentDelibAiAnalysis = undefined;
-    this.requestUpdate();
+  async _handleDismissBanner() {
+    // User chose "Publish anyway" - save original content
+    if (this.pendingPointData) {
+      console.log("🔥 Publishing anyway");
+      // Save immediately with the analysis we already have
+      await this._savePoint(this.pendingPointData.content, this.pendingPointData.value);
+    } else {
+      // Just dismiss without saving
+      this.currentDelibAiAnalysis = undefined;
+      this.addPointDisabled = false;
+      this.requestUpdate();
+    }
   }
 }

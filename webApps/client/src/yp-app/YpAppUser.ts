@@ -800,7 +800,8 @@ export class YpAppUser extends YpCodeBase {
     const isInAgentBundlePage = window.location.pathname.includes("/agent-bundle/");
     const moveUserToHomePageLocation = true;
     if (moveUserToHomePageLocation) {
-      window.location.reload();
+      // Redirect to home page after logout to avoid auth errors
+      window.location.href = '/yp/';
     } else {
       this.toastLogoutTextCombined =
         this.t("user.logoutCompleteFor") + " " + this.user?.name;

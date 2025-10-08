@@ -37,11 +37,19 @@ export class YpFallacyIndicator extends LitElement {
       }
 
       .fallacy-container {
-        background: var(--md-sys-color-warning-container, #fff4e5);
-        border-left: 3px solid var(--md-sys-color-warning, #ff9800);
+        background: #fff8e1;
+        color: #4e342e;
+        border-left: 3px solid #ff9800;
         border-radius: 4px;
         padding: 8px 12px;
         margin: 4px 0;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .fallacy-container {
+          background: #332200;
+          color: #ffe082;
+        }
       }
 
       .fallacy-trigger {
@@ -57,13 +65,20 @@ export class YpFallacyIndicator extends LitElement {
       }
 
       .fallacy-icon {
-        color: var(--md-sys-color-warning, #ff9800);
+        color: #ff9800;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .fallacy-icon {
+          color: #ffb74d;
+        }
       }
 
       .fallacy-summary {
         flex: 1;
         font-size: 0.9em;
         font-weight: 500;
+        color: inherit;
       }
 
       .expand-icon {
@@ -80,11 +95,23 @@ export class YpFallacyIndicator extends LitElement {
         border-top: 1px solid rgba(0, 0, 0, 0.1);
       }
 
+      @media (prefers-color-scheme: dark) {
+        .fallacy-details {
+          border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+      }
+
       .fallacy-item {
         margin: 12px 0;
         padding: 8px;
-        background: rgba(255, 255, 255, 0.6);
+        background: rgba(0, 0, 0, 0.08);
         border-radius: 4px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .fallacy-item {
+          background: rgba(255, 255, 255, 0.08);
+        }
       }
 
       .fallacy-header {
@@ -96,19 +123,21 @@ export class YpFallacyIndicator extends LitElement {
 
       .fallacy-label {
         font-weight: 500;
-        color: var(--md-sys-color-on-warning-container, #3e2723);
+        color: inherit;
       }
 
       .fallacy-score {
         font-size: 0.85em;
         opacity: 0.7;
         margin-left: 8px;
+        color: inherit;
       }
 
       .fallacy-rationale {
         font-size: 0.9em;
         margin: 8px 0;
         line-height: 1.4;
+        color: inherit;
       }
 
       .fallacy-actions {
@@ -120,14 +149,28 @@ export class YpFallacyIndicator extends LitElement {
         border-top: 1px solid rgba(0, 0, 0, 0.05);
       }
 
+      @media (prefers-color-scheme: dark) {
+        .fallacy-actions {
+          border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+      }
+
       .feedback-label {
         font-size: 0.85em;
         margin-right: 4px;
         opacity: 0.7;
+        color: inherit;
       }
 
       .feedback-btn {
         --md-icon-button-icon-size: 18px;
+        --md-icon-button-icon-color: #6d4c41;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .feedback-btn {
+          --md-icon-button-icon-color: #ffcc80;
+        }
       }
 
       md-icon-button.active-up {
@@ -142,6 +185,17 @@ export class YpFallacyIndicator extends LitElement {
         font-size: 0.85em;
         margin-left: 8px;
         opacity: 0.7;
+        color: inherit;
+      }
+
+      md-text-button {
+        --md-text-button-label-text-color: #e65100;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        md-text-button {
+          --md-text-button-label-text-color: #ffcc80;
+        }
       }
 
       [hidden] {

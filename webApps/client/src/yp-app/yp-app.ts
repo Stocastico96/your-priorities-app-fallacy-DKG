@@ -258,7 +258,8 @@ export class YpApp extends YpBaseElement {
     window.adminServerApi = new YpServerApiAdmin();
     this.setupAppGlobals();
     window.appUser = new YpAppUser(window.serverApi);
-    window.appGlobals.setupTranslationSystem();
+    // Use /yp base path for resources when served from subdirectory
+    window.appGlobals.setupTranslationSystem("/yp");
   }
 
   setupAppGlobals() {
@@ -273,6 +274,13 @@ export class YpApp extends YpBaseElement {
     this.updateLocation();
     document.addEventListener("keydown", this._boundHandleKeyDown);
     window.addEventListener("scroll", this._boundHandleScroll);
+
+    // Auto-open login dialog if user is not authenticated on home page
+    setTimeout(() => {
+      if (!window.appUser?.user && window.location.pathname === '/yp/') {
+        window.appUser?.openUserlogin();
+      }
+    }, 1000);
   }
 
   override disconnectedCallback() {

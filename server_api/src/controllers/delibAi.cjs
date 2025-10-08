@@ -5,8 +5,8 @@ const delibAiService = require('../services/moderation/delibAiService.cjs');
 const models = require('../models/index.cjs');
 const log = require('../utils/logger.cjs');
 
-// Analyze draft content on-demand for UI previews
-router.post('/analyze', auth.can('view domain'), async function (req, res) {
+// Analyze draft content on-demand for UI previews (no auth required for logged-in users)
+router.post('/analyze', async function (req, res) {
   try {
     const { text, type = 'draft' } = req.body || {};
     if (!text || typeof text !== 'string' || text.trim() === '') {

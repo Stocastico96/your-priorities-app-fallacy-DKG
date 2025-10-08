@@ -842,17 +842,7 @@ export class YourPrioritiesApi {
   }
 
   initializeRoutes() {
-    this.app.use("/", index);
-    this.app.use("/index.html", index);
-    this.app.use("/domain", index);
-    this.app.use("/community", index);
-    this.app.use("/organization", index);
-    this.app.use("/agent_bundle/*splat", index);
-    this.app.use("/group", index);
-    this.app.use("/post", index);
-    this.app.use("/user", index);
-    this.app.use("/admin", index);
-    this.app.use("/survey*splat", index);
+    // API routes MUST come before catch-all routes
     this.app.use("/api/domains", domains);
     this.app.use("/api/organizations", organizations);
     this.app.use("/api/communities", communities);
@@ -875,6 +865,34 @@ export class YourPrioritiesApi {
     this.app.use("/ideas", legacyPosts);
     this.app.use("/users", legacyUsers);
     this.app.use("/pages", legacyPages);
+
+    // Catch-all routes for SPA (MUST come AFTER API routes)
+    // Routes with /yp prefix for nginx proxy
+    this.app.use("/yp/index.html", index);
+    this.app.use("/yp/domain", index);
+    this.app.use("/yp/community", index);
+    this.app.use("/yp/organization", index);
+    this.app.use("/yp/agent_bundle/*splat", index);
+    this.app.use("/yp/group", index);
+    this.app.use("/yp/post", index);
+    this.app.use("/yp/user", index);
+    this.app.use("/yp/admin", index);
+    this.app.use("/yp/survey*splat", index);
+    this.app.use("/yp/", index);
+    this.app.use("/yp", index);
+
+    // Routes without /yp prefix (for direct access)
+    this.app.use("/index.html", index);
+    this.app.use("/domain", index);
+    this.app.use("/community", index);
+    this.app.use("/organization", index);
+    this.app.use("/agent_bundle/*splat", index);
+    this.app.use("/group", index);
+    this.app.use("/post", index);
+    this.app.use("/user", index);
+    this.app.use("/admin", index);
+    this.app.use("/survey*splat", index);
+    this.app.use("/", index);
 
     // Additional routes for authentication and other functionalities
     this.app.post(

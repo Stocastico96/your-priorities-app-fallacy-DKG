@@ -54,9 +54,9 @@ export class YpDelibAiBanner extends LitElement {
       }
 
       .banner {
-        background: var(--md-sys-color-warning-container, #fff4e5);
-        color: var(--md-sys-color-on-warning-container, #3e2723);
-        border-left: 4px solid var(--md-sys-color-warning, #ff9800);
+        background: #fff8e1;
+        color: #4e342e;
+        border-left: 4px solid #ff9800;
         border-radius: 8px;
         padding: 16px;
         margin: 12px 0;
@@ -66,9 +66,24 @@ export class YpDelibAiBanner extends LitElement {
         word-wrap: break-word;
       }
 
+      @media (prefers-color-scheme: dark) {
+        .banner {
+          background: #332200;
+          color: #ffe082;
+        }
+      }
+
       .banner.perspective-block {
-        background: var(--md-sys-color-error-container, #ffebee);
-        border-left-color: var(--md-sys-color-error, #f44336);
+        background: #ffebee;
+        color: #c62828;
+        border-left-color: #f44336;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .banner.perspective-block {
+          background: #4a0000;
+          color: #ffcdd2;
+        }
       }
 
       .banner-header {
@@ -77,26 +92,36 @@ export class YpDelibAiBanner extends LitElement {
         gap: 8px;
         margin-bottom: 8px;
         font-weight: 500;
+        color: inherit;
       }
 
       .banner-content {
         margin: 12px 0;
+        color: inherit;
       }
 
       .fallacy-item {
         margin: 8px 0;
         padding: 8px;
-        background: rgba(0, 0, 0, 0.03);
+        background: rgba(0, 0, 0, 0.08);
         border-radius: 4px;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .fallacy-item {
+          background: rgba(255, 255, 255, 0.08);
+        }
       }
 
       .fallacy-label {
         font-weight: 500;
         margin-bottom: 4px;
+        color: inherit;
       }
 
       .fallacy-rationale {
         font-size: 0.9em;
+        color: inherit;
         opacity: 0.8;
         overflow-wrap: break-word;
         word-wrap: break-word;
@@ -105,7 +130,8 @@ export class YpDelibAiBanner extends LitElement {
       .rewrite-section {
         margin-top: 12px;
         padding: 12px;
-        background: var(--md-sys-color-surface-variant, #f5f5f5);
+        background: var(--md-sys-color-surface-variant);
+        color: var(--md-sys-color-on-surface-variant);
         border-radius: 8px;
         max-width: 100%;
         box-sizing: border-box;
@@ -114,12 +140,14 @@ export class YpDelibAiBanner extends LitElement {
       .rewrite-label {
         font-weight: 500;
         margin-bottom: 8px;
+        color: var(--md-sys-color-on-surface-variant);
       }
 
       .rewrite-text {
         font-style: italic;
         padding: 8px;
-        background: white;
+        background: var(--md-sys-color-surface-container);
+        color: var(--md-sys-color-on-surface);
         border-radius: 4px;
         overflow-wrap: break-word;
         word-wrap: break-word;
@@ -135,6 +163,7 @@ export class YpDelibAiBanner extends LitElement {
       .ontology-label {
         font-weight: 500;
         margin-bottom: 8px;
+        color: inherit;
       }
 
       .hint-chip {
@@ -152,6 +181,28 @@ export class YpDelibAiBanner extends LitElement {
         gap: 8px;
         margin-top: 12px;
         flex-wrap: wrap;
+      }
+
+      .actions md-filled-button {
+        --md-filled-button-container-color: #ff9800;
+        --md-filled-button-label-text-color: #000;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .actions md-filled-button {
+          --md-filled-button-container-color: #ffa726;
+          --md-filled-button-label-text-color: #000;
+        }
+      }
+
+      .actions md-text-button {
+        --md-text-button-label-text-color: #e65100;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        .actions md-text-button {
+          --md-text-button-label-text-color: #ffcc80;
+        }
       }
 
       [hidden] {
@@ -173,8 +224,9 @@ export class YpDelibAiBanner extends LitElement {
     const isBlock = this.analysis.perspectiveWarning === true;
 
     console.log('[DelibAI Banner] Render checks:', { hasFallacies, hasRewrite, hasOntology, isBlock });
-    if (!hasFallacies && !hasRewrite && !hasOntology) {
-      console.log('[DelibAI Banner] No content to show, returning nothing');
+    // Show banner only if there are fallacies OR a perspective block warning
+    if (!hasFallacies && !isBlock) {
+      console.log('[DelibAI Banner] No fallacies or block warning, returning nothing');
       return nothing;
     }
 

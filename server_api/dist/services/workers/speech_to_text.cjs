@@ -6,9 +6,13 @@ const queue = require('./queue.cjs');
 const i18n = require('../utils/i18n.cjs');
 const toJson = require('../utils/to_json.cjs');
 const _ = require('lodash');
+const axios = require('axios');
 const getAnonymousUser = require('../utils/get_anonymous_system_user.cjs');
 var downloadFile = require('download-file');
 const fs = require('fs');
+const WHISPER_API_URL = process.env.WHISPER_API_URL;
+const USE_LOCAL_WHISPER = Boolean(WHISPER_API_URL);
+const NORMALIZED_WHISPER_URL = WHISPER_API_URL ? WHISPER_API_URL.replace(/\/$/, '') : null;
 let speech, Storage;
 let GOOGLE_APPLICATION_CREDENTIALS;
 if (process.env.GOOGLE_APPLICATION_CREDENTIALS_JSON && process.env.GOOGLE_TRANSCODING_FLAC_BUCKET) {
@@ -240,6 +244,30 @@ const getLanguageArray = (workPackage) => {
         return null;
     }
 };
+const transcribeWithLocalWhisper = async (mediaUrl, languageSelection) => {
+    if (!NORMALIZED_WHISPER_URL) {
+        throw new Error('Local whisper endpoint not configured');
+    }
+    const payload = { audio_url: mediaUrl };
+    if (languageSelection && languageSelection.languageCode) {
+        payload.language = languageSelection.languageCode;
+    }
+    const response = await axios.post(`${NORMALIZED_WHISPER_URL}/transcribe`, payload, { timeout: 600000 });
+    return response.data;
+};
+const applyLocalTranscript = (entity, response) => {
+    if (!entity.meta.transcript) {
+        entity.set('meta.transcript', {});
+    }
+    if (response && response.text) {
+        entity.set('meta.transcript.text', response.text);
+    }
+    if (response && response.language) {
+        entity.set('meta.transcript.detectedLanguage', response.language);
+    }
+    entity.set('meta.transcript.provider', 'faster-whisper');
+    entity.set('meta.transcript.rawResponse', response);
+};
 const createTranscriptForFlac = (flackUrl, workPackage, callback) => {
     const languageSelection = getLanguageArray(workPackage);
     if (languageSelection && speech) {
@@ -347,6 +375,25 @@ const createTranscriptForVideo = (workPackage, callback) => {
             video.set('meta.transcript.inProgressDate', new Date());
             video.save().then(() => {
                 const videoUrl = video.formats[0];
+                if (USE_LOCAL_WHISPER) {
+                    transcribeWithLocalWhisper(videoUrl, languageSelection)
+                        .then((response) => {
+                        applyLocalTranscript(video, response);
+                        video.set('meta.transcript.error', null);
+                        return video.save();
+                    })
+                        .then(() => {
+                        log.info("createTranscriptForVideo: Video with local transcript saved", { videoId: workPackage.videoId });
+                        callback();
+                    })
+                        .catch((error) => {
+                        const errorMessage = error && error.message ? error.message : error;
+                        video.set('meta.transcript.error', errorMessage);
+                        log.error('createTranscriptForVideo', { error: errorMessage });
+                        video.save().finally(() => callback(errorMessage));
+                    });
+                    return;
+                }
                 const flacUrl = videoUrl.slice(0, videoUrl.length - 4) + '.flac';
                 uploadFlacToGoogleCloud(flacUrl, (error, gsUri) => {
                     if (error) {
@@ -422,8 +469,28 @@ const createTranscriptForAudio = (workPackage, callback) => {
             if (!audio.meta.transcript)
                 audio.set('meta.transcript', {});
             audio.set('meta.transcript.inProgressDate', new Date());
+            const languageSelection = getLanguageArray(workPackage);
             audio.save().then(() => {
                 const audioUrl = audio.formats[0];
+                if (USE_LOCAL_WHISPER) {
+                    transcribeWithLocalWhisper(audioUrl, languageSelection)
+                        .then((response) => {
+                        applyLocalTranscript(audio, response);
+                        audio.set('meta.transcript.error', null);
+                        return audio.save();
+                    })
+                        .then(() => {
+                        log.info("createTranscriptForAudio: Audio with local transcript saved", { audioId: workPackage.audioId });
+                        callback();
+                    })
+                        .catch((error) => {
+                        const errorMessage = error && error.message ? error.message : error;
+                        audio.set('meta.transcript.error', errorMessage);
+                        log.error("createTranscriptForAudio", { error: errorMessage });
+                        audio.save().finally(() => callback(errorMessage));
+                    });
+                    return;
+                }
                 const flacUrl = audioUrl.slice(0, audioUrl.length - 4) + '.flac';
                 uploadFlacToGoogleCloud(flacUrl, (error, gsUri) => {
                     if (error) {

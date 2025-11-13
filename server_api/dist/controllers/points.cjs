@@ -9,6 +9,72 @@ var async = require("async");
 const ogs = require("open-graph-scraper");
 var _ = require("lodash");
 var queue = require("../services/workers/queue.cjs");
+var delibAiService = require("../services/moderation/delibAiService.cjs");
+const axios = require("axios");
+// DKG configuration
+const DKG_BASE_URL = process.env.DKG_BASE_URL || "https://dkg.svagnoni.linkeddata.es";
+/**
+ * Send point/contribution to Deliberation Knowledge Graph
+ */
+async function sendPointToDKG(point) {
+    try {
+        // Check if fallacy analysis exists for this point
+        const fallacyLabel = await models.CommentFallacyLabel.findOne({
+            where: {
+                content_type: "point",
+                content_id: point.id,
+            },
+            order: [["created_at", "DESC"]],
+        });
+        const fallacies = [];
+        if (fallacyLabel && fallacyLabel.labels && fallacyLabel.labels.length > 0) {
+            // If fallacies exist, include them
+            for (let i = 0; i < fallacyLabel.labels.length; i++) {
+                fallacies.push({
+                    type: fallacyLabel.labels[i],
+                    score: fallacyLabel.scores[i] || 0,
+                    rationale: fallacyLabel.advice || "",
+                });
+            }
+        }
+        const payload = {
+            contribution_id: `point-${point.id}`,
+            text: point.content,
+            fallacies: fallacies,
+            timestamp: point.created_at || new Date().toISOString(),
+            user_id: point.user_id || point.User?.id,
+            user_name: point.User?.name || point.User?.email || "Anonymous",
+            post_id: point.post_id,
+            post_name: point.Post?.name || "Unknown Post",
+            group_id: point.group_id,
+            group_name: point.Group?.name || "Unknown Group",
+            community_id: point.Group?.Community?.id,
+            community_name: point.Group?.Community?.name || "Unknown Community",
+            value: point.value, // 1=FOR/supports, -1=AGAINST/attacks, 0=NEUTRAL
+            parent_point_id: point.parent_point_id, // For point-to-point responses
+        };
+        log.info("Sending point to DKG", { pointId: point.id, hasFallacies: fallacies.length > 0 });
+        const response = await axios.post(`${DKG_BASE_URL}/api/ingest/fallacy`, payload, {
+            headers: { "Content-Type": "application/json" },
+            timeout: 5000,
+        });
+        log.info("DKG ingest success", {
+            pointId: point.id,
+            fallaciesAdded: response.data.fallacies_added,
+            totalTriples: response.data.total_triples,
+        });
+        return response.data;
+    }
+    catch (error) {
+        // Log error but don't fail the main request
+        log.error("Failed to send point to DKG", {
+            pointId: point.id,
+            error: error.message,
+            response: error.response ? error.response.data : null,
+        });
+        return null;
+    }
+}
 var changePointCounter = function (pointId, column, upDown, next) {
     models.Point.findOne({
         where: { id: pointId },
@@ -107,6 +173,8 @@ var loadPointWithAll = function (pointId, callback) {
             "group_id",
             "post_id",
             "user_id",
+            "parent_point_id",
+            "created_at",
         ],
         order: [
             [models.PointRevision, "created_at", "asc"],
@@ -164,12 +232,19 @@ var loadPointWithAll = function (pointId, callback) {
             {
                 model: models.Post,
                 required: false,
-                attributes: ["id", "group_id"],
+                attributes: ["id", "name", "group_id"],
                 include: [
                     {
                         model: models.Group,
-                        attributes: ["id", "configuration"],
+                        attributes: ["id", "name", "configuration"],
                         required: false,
+                        include: [
+                            {
+                                model: models.Community,
+                                attributes: ["id", "name"],
+                                required: false,
+                            },
+                        ],
                     },
                 ],
             },
@@ -194,6 +269,38 @@ var loadPointWithAll = function (pointId, callback) {
                 (parallelCallback) => {
                     models.Point.setOrganizationUsersForPoints([outPoint], (error) => {
                         parallelCallback(error);
+                    });
+                },
+                (parallelCallback) => {
+                    // Load fallacy labels for this point (both point and comment types)
+                    log.info("Loading fallacy labels for point", { pointId: point.id });
+                    models.CommentFallacyLabels.findOne({
+                        where: {
+                            content_type: { [models.Sequelize.Op.in]: ["point", "comment"] },
+                            content_id: point.id,
+                        },
+                        attributes: ["labels", "scores", "advice", "rewrite"],
+                        order: [["created_at", "DESC"]],
+                    })
+                        .then((fallacyData) => {
+                        if (fallacyData) {
+                            log.info("Fallacy data found for point", {
+                                pointId: point.id,
+                                fallacyCount: fallacyData.labels?.length || 0
+                            });
+                            outPoint.setDataValue("fallacyLabels", fallacyData.labels || []);
+                            outPoint.setDataValue("fallacyAdvice", fallacyData.advice);
+                            outPoint.setDataValue("fallacyRewrite", fallacyData.rewrite);
+                        }
+                        else {
+                            log.info("No fallacy data found for point", { pointId: point.id });
+                        }
+                        parallelCallback();
+                    })
+                        .catch((error) => {
+                        // Don't fail the whole request if fallacy loading fails
+                        log.warn("Failed to load fallacy labels", { error, pointId: point.id });
+                        parallelCallback();
                     });
                 },
             ], (error) => {
@@ -373,7 +480,7 @@ router.get("/:parentPointId/commentsCount", auth.can("view point"), function (re
     });
 });
 router.post("/:parentPointId/comment", auth.isLoggedInNoAnonymousCheck, auth.can("add to point"), function (req, res) {
-    models.Point.createComment(req, { parent_point_id: req.params.parentPointId, comment: req.body.comment }, function (error) {
+    models.Point.createComment(req, { parent_point_id: req.params.parentPointId, comment: req.body.comment }, async function (error, createdPoint) {
         if (error) {
             log.error("Could not save comment point on parent point", {
                 err: error,
@@ -383,11 +490,59 @@ router.post("/:parentPointId/comment", auth.isLoggedInNoAnonymousCheck, auth.can
             res.sendStatus(500);
         }
         else {
-            log.info("Point Comment Created on Parent Point", {
-                context: "news_story",
-                user: toJson(req.user.simple()),
-            });
-            res.sendStatus(200);
+            try {
+                // Analysis is now done in frontend, but we still persist it here
+                const context = {
+                    contentType: "comment",
+                    text: req.body?.comment?.content || "",
+                    userId: req.user.id,
+                    groupId: createdPoint?.group_id,
+                    commentId: createdPoint?.id,
+                    ideaId: createdPoint?.post_id,
+                };
+                // Only run analysis if not already provided by frontend
+                let analysis = null;
+                if (req.body?.delibAnalysis) {
+                    // Frontend already did the analysis, just persist it
+                    analysis = req.body.delibAnalysis;
+                }
+                else {
+                    // Fallback: do the analysis here
+                    analysis = await delibAiService.analyzeContent(context);
+                }
+                await delibAiService.persistAnalysis(context, analysis);
+                if (analysis && delibAiService.shouldBlock(analysis.moderation) && createdPoint) {
+                    await models.Point.update({ status: "blocked" }, { where: { id: createdPoint.id } });
+                }
+                if (analysis && delibAiService.shouldWarn(analysis.moderation)) {
+                    await models.ModerationEvents.create({
+                        event_name: "Fallacy Warning Shown",
+                        properties: {
+                            contentType: "comment",
+                            contentId: createdPoint?.id,
+                            userId: req.user.id,
+                        },
+                    });
+                }
+                log.info("Point Comment Created on Parent Point", {
+                    context: "comment",
+                    user: toJson(req.user.simple()),
+                });
+                res.send({
+                    status: "ok",
+                    commentId: createdPoint?.id,
+                    moderation: analysis ? analysis.moderation : null,
+                    delibAi: analysis ? analysis.delibResult : null,
+                });
+            }
+            catch (analysisError) {
+                log.error("DelibAI analysis failed", {
+                    err: analysisError,
+                    context: "comment",
+                    user: toJson(req.user.simple()),
+                });
+                res.send({ status: "ok", commentId: createdPoint?.id });
+            }
         }
     });
 });
@@ -826,7 +981,7 @@ router.post("/:groupId", auth.can("create point"), function (req, res) {
                     parallelCallback();
                 }
             },
-        ], (error) => {
+        ], async (error) => {
             if (error) {
                 log.error(error);
                 res.sendStatus(500);
@@ -841,6 +996,58 @@ router.post("/:groupId", auth.can("create point"), function (req, res) {
                     log.info("No process-moderation toxicity for empty text on point");
                 }
                 queue.add("process-moderation", { type: "point-review-and-annotate-images", pointId: point.id }, "medium");
+                // Analysis is now done in frontend, but we persist it here
+                // Run DelibAI analysis synchronously before sending response
+                let delibAnalysis = null;
+                try {
+                    if (point && point.content) {
+                        log.info("Persisting DelibAI analysis for point", {
+                            pointId: point.id,
+                            contentLength: point.content.length
+                        });
+                        const context = {
+                            contentType: "point",
+                            text: point.content || "",
+                            userId: req.user.id,
+                            groupId: point.group_id,
+                            pointId: point.id,
+                            ideaId: point.post_id,
+                        };
+                        // Only run analysis if not already provided by frontend
+                        let analysis = null;
+                        if (req.body?.delibAnalysis) {
+                            // Frontend already did the analysis, just persist it
+                            analysis = req.body.delibAnalysis;
+                        }
+                        else {
+                            // Fallback: do the analysis here
+                            analysis = await delibAiService.analyzeContent(context);
+                        }
+                        log.info("DelibAI analysis ready to persist", {
+                            pointId: point.id,
+                            hasModeration: !!analysis?.moderation,
+                            hasDelibResult: !!analysis?.delibResult
+                        });
+                        await delibAiService.persistAnalysis(context, analysis);
+                        // Block only if Perspective decides to block
+                        if (analysis && delibAiService.shouldBlock(analysis.moderation)) {
+                            await models.Point.update({ status: "blocked" }, { where: { id: point.id } });
+                        }
+                        delibAnalysis = {
+                            fallacies: analysis?.delibResult?.fallacies || [],
+                            ontologyHints: analysis?.delibResult?.ontologyHints || null,
+                            perspectiveWarning: analysis?.moderation?.decision === "block" ||
+                                analysis?.moderation?.decision === "soft_warning",
+                            suggestedRewrite: analysis?.delibResult?.rewrite || null,
+                        };
+                    }
+                }
+                catch (analysisError) {
+                    log.error("DelibAI analysis failed for point create", {
+                        err: analysisError,
+                        context: "createPoint",
+                    });
+                }
                 loadPointWithAll(point.id, function (error, loadedPoint) {
                     if (error) {
                         log.error("Could not reload point point", {
@@ -851,9 +1058,29 @@ router.post("/:groupId", auth.can("create point"), function (req, res) {
                         res.sendStatus(500);
                     }
                     else {
+                        // Convert to plain object to allow adding delibAiAnalysis
+                        const pointResponse = loadedPoint.toJSON ? loadedPoint.toJSON() : loadedPoint;
+                        if (delibAnalysis) {
+                            pointResponse.delibAiAnalysis = delibAnalysis;
+                            log.info("DelibAI analysis attached to point response", {
+                                pointId: point.id,
+                                hasFallacies: delibAnalysis.fallacies?.length > 0,
+                                hasRewrite: !!delibAnalysis.suggestedRewrite,
+                                analysisObject: delibAnalysis,
+                            });
+                        }
+                        else {
+                            log.warn("DelibAI analysis was null for point", { pointId: point.id });
+                        }
+                        // Send point to DKG (non-blocking)
+                        if (loadedPoint && loadedPoint.content) {
+                            sendPointToDKG(loadedPoint).catch(err => {
+                                log.error("DKG send failed", { pointId: loadedPoint.id, error: err.message });
+                            });
+                        }
                         const newPointRedisKey = `newUserPoint_${req.user.id}`;
                         req.redisClient.setEx(newPointRedisKey, 30, JSON.stringify({}));
-                        res.send(loadedPoint);
+                        res.send(pointResponse);
                     }
                 });
             }

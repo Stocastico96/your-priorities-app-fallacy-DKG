@@ -12,6 +12,7 @@ const getAnonymousUser = require("../services/utils/get_anonymous_system_user.cj
 const moment = require("moment");
 const { plausibleStatsProxy, } = require("../services/engine/analytics/plausible/manager.cjs");
 const { isValidDbId } = require("../utils/is_valid_db_id.cjs");
+var delibAiService = require("../services/moderation/delibAiService.cjs");
 var changePostCounter = function (req, postId, column, upDown, next) {
     models.Post.findOne({
         where: { id: postId },
@@ -877,6 +878,39 @@ const sendPostPoints = (req, res, redisKey) => {
                                 parallelCallback(error);
                             });
                         },
+                        (parallelCallback) => {
+                            // Load fallacies for all points
+                            const pointIds = points.map(p => p.id);
+                            models.CommentFallacyLabels.findAll({
+                                where: {
+                                    content_type: { $in: ["point", "comment"] },
+                                    content_id: { $in: pointIds },
+                                },
+                                attributes: ["content_id", "labels", "scores", "advice", "rewrite"],
+                                order: [["created_at", "DESC"]],
+                            })
+                                .then((fallacies) => {
+                                const fallacyMap = {};
+                                fallacies.forEach(f => {
+                                    if (!fallacyMap[f.content_id]) {
+                                        fallacyMap[f.content_id] = f;
+                                    }
+                                });
+                                points.forEach(point => {
+                                    const fallacyData = fallacyMap[point.id];
+                                    if (fallacyData) {
+                                        point.setDataValue("fallacyLabels", fallacyData.labels || []);
+                                        point.setDataValue("fallacyAdvice", fallacyData.advice);
+                                        point.setDataValue("fallacyRewrite", fallacyData.rewrite);
+                                    }
+                                });
+                                parallelCallback();
+                            })
+                                .catch((error) => {
+                                log.warn("Failed to load fallacies for points", { error });
+                                parallelCallback(); // Don't fail the whole request
+                            });
+                        },
                     ], (error) => {
                         if (error) {
                             sendPostOrError(res, null, "view", req.user, "Point org users", 404);
@@ -1168,7 +1202,48 @@ router.post("/:groupId", auth.can("create post"), async function (req, res) {
                                             type: "post-review-and-annotate-images",
                                             postId: post.id,
                                         }, "medium");
-                                        sendPostOrError(res, post, "setupImages", req.user, error);
+                                        (async () => {
+                                            // DelibAI analysis for new post (idea)
+                                            try {
+                                                const textToAnalyze = (post.description && post.description.trim() !== ""
+                                                    ? post.description
+                                                    : post.name) || "";
+                                                if (textToAnalyze) {
+                                                    const context = {
+                                                        contentType: "idea",
+                                                        text: textToAnalyze,
+                                                        userId: req.user.id,
+                                                        groupId: post.group_id,
+                                                        ideaId: post.id,
+                                                    };
+                                                    const analysis = await delibAiService.analyzeContent(context);
+                                                    await delibAiService.persistAnalysis(context, analysis);
+                                                    if (analysis &&
+                                                        delibAiService.shouldBlock(analysis.moderation)) {
+                                                        await models.Post.update({ status: "blocked" }, { where: { id: post.id } });
+                                                    }
+                                                    try {
+                                                        post.setDataValue("delibAiAnalysis", {
+                                                            fallacies: analysis?.delibResult?.fallacies || [],
+                                                            ontologyHints: analysis?.delibResult?.ontologyHints || null,
+                                                            perspectiveWarning: analysis?.moderation?.decision ===
+                                                                "block" ||
+                                                                analysis?.moderation?.decision ===
+                                                                    "soft_warning",
+                                                            suggestedRewrite: analysis?.delibResult?.rewrite || null,
+                                                        });
+                                                    }
+                                                    catch (_) { }
+                                                }
+                                            }
+                                            catch (analysisError) {
+                                                log.error("DelibAI analysis failed for post", {
+                                                    err: analysisError,
+                                                    context: "createPost",
+                                                });
+                                            }
+                                            sendPostOrError(res, post, "setupImages", req.user, error);
+                                        })();
                                     }
                                     else {
                                         sendPostOrError(res, post, "setupImages", req.user, error);

@@ -10,6 +10,7 @@ var toJson = require("../utils/to_json.cjs");
 const s3Storage = require("multer-sharp-s3");
 const crypto = require("crypto");
 var queue = require("../services/workers/queue.cjs");
+var delibAiService = require("../services/moderation/delibAiService.cjs");
 const aws = require("aws-sdk");
 aws.config.update({
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
@@ -212,7 +213,7 @@ router.get("/:imageId/commentsCount", auth.can("view image"), function (req, res
     });
 });
 router.post("/:imageId/comment", auth.isLoggedInNoAnonymousCheck, auth.can("view image"), function (req, res) {
-    models.Point.createComment(req, { image_id: req.params.imageId, comment: req.body.comment }, function (error) {
+    models.Point.createComment(req, { image_id: req.params.imageId, comment: req.body.comment }, async function (error, createdPoint) {
         if (error) {
             log.error("Could not save comment point on image", {
                 err: error,
@@ -222,11 +223,49 @@ router.post("/:imageId/comment", auth.isLoggedInNoAnonymousCheck, auth.can("view
             res.sendStatus(500);
         }
         else {
-            log.info("Point Comment Created on Image", {
-                context: "comment",
-                user: toJson(req.user.simple()),
-            });
-            res.sendStatus(200);
+            try {
+                const context = {
+                    contentType: "comment",
+                    text: req.body?.comment?.content || "",
+                    userId: req.user.id,
+                    groupId: createdPoint?.group_id,
+                    commentId: createdPoint?.id,
+                    ideaId: createdPoint?.post_id,
+                };
+                const analysis = await delibAiService.analyzeContent(context);
+                await delibAiService.persistAnalysis(context, analysis);
+                if (analysis && delibAiService.shouldBlock(analysis.moderation) && createdPoint) {
+                    await models.Point.update({ status: "blocked" }, { where: { id: createdPoint.id } });
+                }
+                if (analysis && delibAiService.shouldWarn(analysis.moderation)) {
+                    await models.ModerationEvents.create({
+                        event_name: "Fallacy Warning Shown",
+                        properties: {
+                            contentType: "comment",
+                            contentId: createdPoint?.id,
+                            userId: req.user.id,
+                        },
+                    });
+                }
+                log.info("Point Comment Created on Image", {
+                    context: "comment",
+                    user: toJson(req.user.simple()),
+                });
+                res.send({
+                    status: "ok",
+                    commentId: createdPoint?.id,
+                    moderation: analysis ? analysis.moderation : null,
+                    delibAi: analysis ? analysis.delibResult : null,
+                });
+            }
+            catch (analysisError) {
+                log.error("DelibAI analysis failed", {
+                    err: analysisError,
+                    context: "comment",
+                    user: toJson(req.user.simple()),
+                });
+                res.send({ status: "ok", commentId: createdPoint?.id });
+            }
         }
     });
 });

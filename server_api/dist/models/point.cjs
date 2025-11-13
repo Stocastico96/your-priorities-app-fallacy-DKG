@@ -376,6 +376,7 @@ module.exports = (sequelize, DataTypes) => {
                             postId: options.post_id,
                             access: sequelize.models.AcActivity.ACCESS_PUBLIC
                         }, (error) => {
+                            options.createdPoint = point;
                             seriesCallback(error);
                         });
                     });
@@ -384,7 +385,7 @@ module.exports = (sequelize, DataTypes) => {
                 });
             }
         ], (error) => {
-            callback(error);
+            callback(error, options.createdPoint || null);
         });
     };
     //TODO Refactor duplicate code with Post

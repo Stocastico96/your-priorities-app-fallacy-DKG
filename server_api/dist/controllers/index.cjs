@@ -274,13 +274,14 @@ let indexCache = {
     }
 };
 async function replaceSiteData(indexFileData, req, useNewVersion) {
+    const domainConfig = (req && req.ypDomain && req.ypDomain.configuration) ? req.ypDomain.configuration : {};
     if (process.env.ZIGGEO_ENABLED &&
-        req.ypDomain.configuration.ziggeoApplicationToken) {
-        indexFileData = indexFileData.replace('<html lang="en">', `<html lang="en">${ziggeoHeaders(req.ypDomain.configuration.ziggeoApplicationToken)}`);
+        domainConfig.ziggeoApplicationToken) {
+        indexFileData = indexFileData.replace('<html lang="en">', `<html lang="en">${ziggeoHeaders(domainConfig.ziggeoApplicationToken)}`);
     }
-    if (req.ypDomain.configuration &&
-        req.ypDomain.configuration.preloadCssUrl) {
-        indexFileData = indexFileData.replace('<html lang="en">', `<html lang="en"><link rel="stylesheet" href="${req.ypDomain.configuration.preloadCssUrl}">`);
+    if (domainConfig &&
+        domainConfig.preloadCssUrl) {
+        indexFileData = indexFileData.replace('<html lang="en">', `<html lang="en"><link rel="stylesheet" href="${domainConfig.preloadCssUrl}">`);
     }
     //TODO: Remove when old client app version is deprecated fully
     const plausibleReplaceKeyOld = `XplcX`;
@@ -289,20 +290,20 @@ async function replaceSiteData(indexFileData, req, useNewVersion) {
     const ga4TagKeyNew = `<meta name="Xga4X" content="Xga4X">`;
     const plausibleReplaceKey = useNewVersion ? plausibleReplaceKeyNew : plausibleReplaceKeyOld;
     if (req.ypDomain &&
-        req.ypDomain.configuration &&
-        req.ypDomain.configuration.plausibleDataDomains &&
-        req.ypDomain.configuration.plausibleDataDomains.length > 5) {
-        indexFileData = indexFileData.replace(plausibleReplaceKey, getPlausibleCode(req.ypDomain.configuration.plausibleDataDomains));
+        domainConfig &&
+        domainConfig.plausibleDataDomains &&
+        domainConfig.plausibleDataDomains.length > 5) {
+        indexFileData = indexFileData.replace(plausibleReplaceKey, getPlausibleCode(domainConfig.plausibleDataDomains));
     }
     else {
         indexFileData = indexFileData.replace(plausibleReplaceKey, "");
     }
     const ga4TagKey = useNewVersion ? ga4TagKeyNew : ga4TagKeyOld;
     if (req.ypDomain &&
-        req.ypDomain.configuration &&
-        req.ypDomain.configuration.ga4Tag &&
-        req.ypDomain.configuration.ga4Tag.length > 4) {
-        indexFileData = indexFileData.replace(ga4TagKey, getGA4Code(req.ypDomain.configuration.ga4Tag));
+        domainConfig &&
+        domainConfig.ga4Tag &&
+        domainConfig.ga4Tag.length > 4) {
+        indexFileData = indexFileData.replace(ga4TagKey, getGA4Code(domainConfig.ga4Tag));
     }
     else {
         indexFileData = indexFileData.replace(ga4TagKey, "");

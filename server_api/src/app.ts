@@ -188,12 +188,12 @@ export class YourPrioritiesApi {
     log.debug("Have initialized passport strategies");
     this.addInviteAsAnonMiddleWare();
     log.debug("Have added invite as anon middle ware");
-    this.setupStaticFileServing();
-    log.debug("Have setup static file serving");
     this.checkAuthForSsoInit();
     log.debug("Have checked auth for sso init");
     this.initializeRoutes();
     log.debug("Have initialized routes");
+    this.setupStaticFileServing();
+    log.debug("Have setup static file serving");
     this.initializeEsControllers();
     log.debug("Have initialized es controllers");
   }
@@ -224,12 +224,12 @@ export class YourPrioritiesApi {
     log.debug("Have initialized passport strategies");
     this.addInviteAsAnonMiddleWare();
     log.debug("Have added invite as anon middle ware");
-    this.setupStaticFileServing();
-    log.debug("Have setup static file serving");
     this.checkAuthForSsoInit();
     log.debug("Have checked auth for sso init");
     this.initializeRoutes();
     log.debug("Have initialized routes");
+    this.setupStaticFileServing();
+    log.debug("Have setup static file serving");
     this.initializeEsControllers();
     log.debug("Have initialized es controllers");
   }
@@ -520,6 +520,11 @@ export class YourPrioritiesApi {
 
     this.app.use(
       (req: YpRequest, res: express.Response, next: NextFunction) => {
+        // Skip API routes - they should be handled by their specific routers
+        if (req.path.startsWith("/api/")) {
+          return next();
+        }
+
         let ua = req.headers["user-agent"] || "";
         if (
           req.headers["content-type"] !== "application/json" &&
@@ -813,6 +818,11 @@ export class YourPrioritiesApi {
     // Middleware to set paths based on query parameters
     this.app.use(
       (req: YpRequest, res: express.Response, next: NextFunction) => {
+        // Skip API routes - they should be handled by their specific routers
+        if (req.path.startsWith("/api/")) {
+          return next();
+        }
+
         const baseDir = path.join(__dirname, "../webAppsDist");
 
         const useNewVersion = req.useNewVersion;

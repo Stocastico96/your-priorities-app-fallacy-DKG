@@ -28,7 +28,23 @@ const perspectiveClient = process.env.GOOGLE_PERSPECTIVE_API_KEY
   : null;
 
 const OPENAI_MODEL =
-  process.env.OPENAI_STREAMING_MODEL_NAME || "meta-llama/llama-3.1-70b-instruct:free";
+  process.env.OPENAI_STREAMING_MODEL_NAME || "deepseek/deepseek-chat-v3.1:free";
+
+// Fallback models in order of preference
+const FALLBACK_MODELS = [
+  "deepseek/deepseek-chat-v3.1:free",
+  "openrouter/polaris-alpha",
+  "tngtech/deepseek-r1t2-chimera:free",
+  "z-ai/glm-4.5-air:free",
+  "tngtech/deepseek-r1t-chimera:free",
+  "deepseek/deepseek-chat-v3-0324:free",
+  "deepseek/deepseek-r1-0528:free",
+  "qwen/qwen3-235b-a22b:free",
+  "google/gemini-2.0-flash-exp:free",
+  "google/gemma-3-27b-it:free",
+  "meta-llama/llama-3.3-70b-instruct:free",
+  "deepseek/deepseek-r1:free",
+];
 
 const FALLACY_BLOCK_THRESHOLD = parseFloat(
   process.env.PERSPECTIVE_BLOCK_THRESHOLD || "0.85"
@@ -123,27 +139,56 @@ const runDelibAi = async (context) => {
 
   const prompt = buildDelibPrompt(context);
 
-  try {
-    const response = await openAiClient.chat.completions.create({
-      model: OPENAI_MODEL,
-      messages: [
-        { role: "user", content: prompt }
-      ],
-      response_format: { type: "json_object" },
-      max_tokens: 512,
-      temperature: 0.2,
-    });
+  // Try primary model first
+  const modelsToTry = [OPENAI_MODEL, ...FALLBACK_MODELS.filter(m => m !== OPENAI_MODEL)];
 
-    const outputText = response?.choices?.[0]?.message?.content || "";
+  for (let i = 0; i < modelsToTry.length; i++) {
+    const model = modelsToTry[i];
+    try {
+      log.info(`DelibAI trying model ${i + 1}/${modelsToTry.length}`, { model });
 
-    if (!outputText) return null;
+      const response = await openAiClient.chat.completions.create({
+        model: model,
+        messages: [
+          { role: "user", content: prompt }
+        ],
+        response_format: { type: "json_object" },
+        max_tokens: 512,
+        temperature: 0.2,
+      });
 
-    const repaired = jsonrepair(outputText);
-    return JSON.parse(repaired);
-  } catch (error) {
-    log.error("DelibAI OpenRouter call failed", { error });
-    return null;
+      const outputText = response?.choices?.[0]?.message?.content || "";
+
+      if (!outputText) {
+        log.warn("DelibAI model returned empty response", { model });
+        continue;
+      }
+
+      const repaired = jsonrepair(outputText);
+      const result = JSON.parse(repaired);
+
+      log.info("DelibAI analysis successful", { model, hasFallacies: result.fallacies?.length > 0 });
+      return result;
+    } catch (error) {
+      log.error(`DelibAI model ${model} failed`, {
+        error: error.message,
+        model,
+        attempt: i + 1,
+        remaining: modelsToTry.length - i - 1
+      });
+
+      // If this is the last model, return null
+      if (i === modelsToTry.length - 1) {
+        log.error("DelibAI all models failed");
+        return null;
+      }
+
+      // Otherwise, continue to next model
+      continue;
+    }
   }
+
+  return null;
 };
 
 const analyzeContent = async (context) => {

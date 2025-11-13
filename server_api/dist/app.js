@@ -34,6 +34,8 @@ import points from "./controllers/points.cjs";
 import users from "./controllers/users.cjs";
 import categories from "./controllers/categories.cjs";
 import images from "./controllers/images.cjs";
+import delibAiRoutes from "./controllers/delibAi.cjs";
+import fallacies from "./controllers/fallacies.cjs";
 import externalIds from "./controllers/externalIds.cjs";
 import ratings from "./controllers/ratings.cjs";
 import bulkStatusUpdates from "./controllers/bulkStatusUpdates.cjs";
@@ -243,12 +245,12 @@ export class YourPrioritiesApi {
         log.debug("Have initialized passport strategies");
         this.addInviteAsAnonMiddleWare();
         log.debug("Have added invite as anon middle ware");
-        this.setupStaticFileServing();
-        log.debug("Have setup static file serving");
         this.checkAuthForSsoInit();
         log.debug("Have checked auth for sso init");
         this.initializeRoutes();
         log.debug("Have initialized routes");
+        this.setupStaticFileServing();
+        log.debug("Have setup static file serving");
         this.initializeEsControllers();
         log.debug("Have initialized es controllers");
     }
@@ -278,12 +280,12 @@ export class YourPrioritiesApi {
         log.debug("Have initialized passport strategies");
         this.addInviteAsAnonMiddleWare();
         log.debug("Have added invite as anon middle ware");
-        this.setupStaticFileServing();
-        log.debug("Have setup static file serving");
         this.checkAuthForSsoInit();
         log.debug("Have checked auth for sso init");
         this.initializeRoutes();
         log.debug("Have initialized routes");
+        this.setupStaticFileServing();
+        log.debug("Have setup static file serving");
         this.initializeEsControllers();
         log.debug("Have initialized es controllers");
     }
@@ -495,6 +497,10 @@ export class YourPrioritiesApi {
                 : 30,
         });
         this.app.use((req, res, next) => {
+            // Skip API routes - they should be handled by their specific routers
+            if (req.path.startsWith("/api/")) {
+                return next();
+            }
             let ua = req.headers["user-agent"] || "";
             if (req.headers["content-type"] !== "application/json" &&
                 req.originalUrl &&
@@ -600,6 +606,8 @@ export class YourPrioritiesApi {
         }
         //@ts-ignore
         this.app.use(session(sessionConfig));
+        // Mount DelibAI API early under /api
+        this.app.use('/api/delib-ai', delibAiRoutes);
     }
     async initializeEsControllers() {
         log.info("Initializing ES controllers");
@@ -658,6 +666,10 @@ export class YourPrioritiesApi {
         this.app.use("/Workers", express.static(path.join(landUseGamePath, "Workers")));
         // Middleware to set paths based on query parameters
         this.app.use((req, res, next) => {
+            // Skip API routes - they should be handled by their specific routers
+            if (req.path.startsWith("/api/")) {
+                return next();
+            }
             const baseDir = path.join(__dirname, "../webAppsDist");
             const useNewVersion = req.useNewVersion;
             // Set the paths depending on the version
@@ -681,23 +693,14 @@ export class YourPrioritiesApi {
         });
     }
     initializeRoutes() {
-        this.app.use("/", index);
-        this.app.use("/index.html", index);
-        this.app.use("/domain", index);
-        this.app.use("/community", index);
-        this.app.use("/organization", index);
-        this.app.use("/agent_bundle/*splat", index);
-        this.app.use("/group", index);
-        this.app.use("/post", index);
-        this.app.use("/user", index);
-        this.app.use("/admin", index);
-        this.app.use("/survey*splat", index);
+        // API routes MUST come before catch-all routes
         this.app.use("/api/domains", domains);
         this.app.use("/api/organizations", organizations);
         this.app.use("/api/communities", communities);
         this.app.use("/api/groups", groups);
         this.app.use("/api/posts", posts);
         this.app.use("/api/points", points);
+        this.app.use("/api/fallacies", fallacies);
         this.app.use("/api/images", images);
         this.app.use("/api/videos", videos);
         this.app.use("/api/audios", audios);
@@ -713,6 +716,32 @@ export class YourPrioritiesApi {
         this.app.use("/ideas", legacyPosts);
         this.app.use("/users", legacyUsers);
         this.app.use("/pages", legacyPages);
+        // Catch-all routes for SPA (MUST come AFTER API routes)
+        // Routes with /yp prefix for nginx proxy
+        this.app.use("/yp/index.html", index);
+        this.app.use("/yp/domain", index);
+        this.app.use("/yp/community", index);
+        this.app.use("/yp/organization", index);
+        this.app.use("/yp/agent_bundle/*splat", index);
+        this.app.use("/yp/group", index);
+        this.app.use("/yp/post", index);
+        this.app.use("/yp/user", index);
+        this.app.use("/yp/admin", index);
+        this.app.use("/yp/survey*splat", index);
+        this.app.use("/yp/", index);
+        this.app.use("/yp", index);
+        // Routes without /yp prefix (for direct access)
+        this.app.use("/index.html", index);
+        this.app.use("/domain", index);
+        this.app.use("/community", index);
+        this.app.use("/organization", index);
+        this.app.use("/agent_bundle/*splat", index);
+        this.app.use("/group", index);
+        this.app.use("/post", index);
+        this.app.use("/user", index);
+        this.app.use("/admin", index);
+        this.app.use("/survey*splat", index);
+        this.app.use("/", index);
         // Additional routes for authentication and other functionalities
         this.app.post("/authenticate_from_island_is", (req, res) => {
             log.info("SAML SAML 1", { domainId: req.ypDomain.id });

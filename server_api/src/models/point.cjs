@@ -383,6 +383,11 @@ module.exports = (sequelize, DataTypes) => {
           pointRevision.save().then(() => {
             log.info("process-moderation point toxicity on comment");
             queue.add('process-moderation', { type: 'estimate-point-toxicity', pointId: point.id }, 'high');
+
+            // Queue PSV calculation for the new comment
+            log.info("Queueing PSV calculation for comment");
+            queue.add('process-psv-calculation', { type: 'calculate-psv', pointId: point.id }, 'medium');
+
             sequelize.models.AcActivity.createActivity({
               type: 'activity.point.comment.new',
               userId: options.user_id,

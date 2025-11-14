@@ -1,0 +1,272 @@
+@prefix delib: <http://www.semanticweb.org/deliberation-ontology#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix dc: <http://purl.org/dc/elements/1.1/> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+
+# ============================================================
+# Deliberation Knowledge Graph Ontology
+# ============================================================
+# Based on: http://stocastico96.github.io/Deliberation-Knowledge-Graph/
+#
+# This ontology models deliberative democracy processes, including:
+# - Deliberation processes and their stages
+# - Participants and their contributions
+# - Arguments, proposals, and their relationships
+# - Fallacy detection and validation
+# ============================================================
+
+<http://www.semanticweb.org/deliberation-ontology> a owl:Ontology ;
+    dc:title "Deliberation Knowledge Graph Ontology" ;
+    dc:description "An ontology for representing deliberative democracy processes, arguments, and participant interactions" ;
+    dcterms:created "2025-01-14"^^xsd:date ;
+    owl:versionInfo "1.0" .
+
+# ============================================================
+# CLASSES
+# ============================================================
+
+# --- Process Classes ---
+
+delib:DeliberationProcess a owl:Class ;
+    rdfs:label "Deliberation Process" ;
+    rdfs:comment "A structured deliberation process or discussion space" .
+
+delib:DeliberationStage a owl:Class ;
+    rdfs:label "Deliberation Stage" ;
+    rdfs:comment "A stage or phase within a deliberation process" .
+
+# --- Participant Classes ---
+
+delib:Participant a owl:Class ;
+    rdfs:subClassOf foaf:Person ;
+    rdfs:label "Participant" ;
+    rdfs:comment "A person participating in deliberation" .
+
+delib:Stakeholder a owl:Class ;
+    rdfs:subClassOf delib:Participant ;
+    rdfs:label "Stakeholder" ;
+    rdfs:comment "A participant with specific stakes in the deliberation outcome" .
+
+# --- Contribution Classes ---
+
+delib:Contribution a owl:Class ;
+    rdfs:label "Contribution" ;
+    rdfs:comment "A contribution to a deliberation process" .
+
+delib:Proposal a owl:Class ;
+    rdfs:subClassOf delib:Contribution ;
+    rdfs:label "Proposal" ;
+    rdfs:comment "A proposal or idea submitted for deliberation" .
+
+delib:Argument a owl:Class ;
+    rdfs:subClassOf delib:Contribution ;
+    rdfs:label "Argument" ;
+    rdfs:comment "An argument supporting or opposing a proposal" .
+
+delib:Comment a owl:Class ;
+    rdfs:subClassOf delib:Contribution ;
+    rdfs:label "Comment" ;
+    rdfs:comment "A comment or discussion point" .
+
+# --- Argument Structure Classes ---
+
+delib:Claim a owl:Class ;
+    rdfs:label "Claim" ;
+    rdfs:comment "A claim or assertion made in an argument" .
+
+delib:Premise a owl:Class ;
+    rdfs:label "Premise" ;
+    rdfs:comment "A premise supporting a claim" .
+
+delib:Evidence a owl:Class ;
+    rdfs:label "Evidence" ;
+    rdfs:comment "Evidence supporting a premise or claim" .
+
+# --- Fallacy Classes ---
+
+delib:Fallacy a owl:Class ;
+    rdfs:label "Fallacy" ;
+    rdfs:comment "A logical fallacy detected in an argument" .
+
+delib:AdHominem a owl:Class ;
+    rdfs:subClassOf delib:Fallacy ;
+    rdfs:label "Ad Hominem" ;
+    rdfs:comment "Attack on the person rather than the argument" .
+
+delib:StrawMan a owl:Class ;
+    rdfs:subClassOf delib:Fallacy ;
+    rdfs:label "Straw Man" ;
+    rdfs:comment "Misrepresenting an argument to make it easier to attack" .
+
+delib:FalseDilemma a owl:Class ;
+    rdfs:subClassOf delib:Fallacy ;
+    rdfs:label "False Dilemma" ;
+    rdfs:comment "Presenting only two options when more exist" .
+
+delib:AppealToAuthority a owl:Class ;
+    rdfs:subClassOf delib:Fallacy ;
+    rdfs:label "Appeal to Authority" ;
+    rdfs:comment "Claiming something is true because an authority said so" .
+
+# --- Decision Classes ---
+
+delib:Decision a owl:Class ;
+    rdfs:label "Decision" ;
+    rdfs:comment "A decision made through deliberation" .
+
+delib:Vote a owl:Class ;
+    rdfs:label "Vote" ;
+    rdfs:comment "A vote cast by a participant" .
+
+# ============================================================
+# PROPERTIES
+# ============================================================
+
+# --- Process Properties ---
+
+delib:hasStage a owl:ObjectProperty ;
+    rdfs:label "has stage" ;
+    rdfs:domain delib:DeliberationProcess ;
+    rdfs:range delib:DeliberationStage ;
+    rdfs:comment "Links a process to its stages" .
+
+delib:partOf a owl:ObjectProperty ;
+    rdfs:label "part of" ;
+    rdfs:range delib:DeliberationProcess ;
+    rdfs:comment "Indicates an entity is part of a deliberation process" .
+
+delib:processStatus a owl:DatatypeProperty ;
+    rdfs:label "process status" ;
+    rdfs:domain delib:DeliberationProcess ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Status of the deliberation process (active, completed, etc.)" .
+
+# --- Participation Properties ---
+
+delib:participatesIn a owl:ObjectProperty ;
+    rdfs:label "participates in" ;
+    rdfs:domain delib:Participant ;
+    rdfs:range delib:DeliberationProcess ;
+    rdfs:comment "Links a participant to a process" .
+
+delib:hasAuthor a owl:ObjectProperty ;
+    rdfs:label "has author" ;
+    rdfs:range delib:Participant ;
+    rdfs:comment "Links a contribution to its author" .
+
+# --- Contribution Properties ---
+
+delib:contributesTo a owl:ObjectProperty ;
+    rdfs:label "contributes to" ;
+    rdfs:domain delib:Contribution ;
+    rdfs:range delib:DeliberationProcess ;
+    rdfs:comment "Links a contribution to a process" .
+
+delib:supports a owl:ObjectProperty ;
+    rdfs:label "supports" ;
+    rdfs:domain delib:Argument ;
+    rdfs:range delib:Proposal ;
+    rdfs:comment "An argument supports a proposal" .
+
+delib:opposes a owl:ObjectProperty ;
+    rdfs:label "opposes" ;
+    rdfs:domain delib:Argument ;
+    rdfs:range delib:Proposal ;
+    rdfs:comment "An argument opposes a proposal" .
+
+delib:respondsTo a owl:ObjectProperty ;
+    rdfs:label "responds to" ;
+    rdfs:domain delib:Contribution ;
+    rdfs:range delib:Contribution ;
+    rdfs:comment "A contribution responds to another contribution" .
+
+delib:argumentType a owl:DatatypeProperty ;
+    rdfs:label "argument type" ;
+    rdfs:domain delib:Argument ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Type of argument (supporting, opposing, neutral)" .
+
+delib:contributionStatus a owl:DatatypeProperty ;
+    rdfs:label "contribution status" ;
+    rdfs:domain delib:Contribution ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Status of the contribution" .
+
+# --- Argument Structure Properties ---
+
+delib:hasClaim a owl:ObjectProperty ;
+    rdfs:label "has claim" ;
+    rdfs:domain delib:Argument ;
+    rdfs:range delib:Claim ;
+    rdfs:comment "Links an argument to its claim" .
+
+delib:hasPremise a owl:ObjectProperty ;
+    rdfs:label "has premise" ;
+    rdfs:domain delib:Argument ;
+    rdfs:range delib:Premise ;
+    rdfs:comment "Links an argument to its premises" .
+
+delib:hasEvidence a owl:ObjectProperty ;
+    rdfs:label "has evidence" ;
+    rdfs:range delib:Evidence ;
+    rdfs:comment "Links to supporting evidence" .
+
+# --- Fallacy Properties ---
+
+delib:containsFallacy a owl:ObjectProperty ;
+    rdfs:label "contains fallacy" ;
+    rdfs:domain delib:Argument ;
+    rdfs:range delib:Fallacy ;
+    rdfs:comment "An argument contains a fallacy" .
+
+delib:detectedIn a owl:ObjectProperty ;
+    rdfs:label "detected in" ;
+    rdfs:domain delib:Fallacy ;
+    rdfs:range delib:Argument ;
+    rdfs:comment "A fallacy detected in an argument" .
+
+delib:fallacyType a owl:DatatypeProperty ;
+    rdfs:label "fallacy type" ;
+    rdfs:domain delib:Fallacy ;
+    rdfs:range xsd:string ;
+    rdfs:comment "Type of fallacy detected" .
+
+delib:confidence a owl:DatatypeProperty ;
+    rdfs:label "confidence" ;
+    rdfs:domain delib:Fallacy ;
+    rdfs:range xsd:float ;
+    rdfs:comment "Confidence score of fallacy detection (0-1)" .
+
+# --- Quality Metrics ---
+
+delib:qualityScore a owl:DatatypeProperty ;
+    rdfs:label "quality score" ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Quality score of a contribution" .
+
+delib:endorsementCount a owl:DatatypeProperty ;
+    rdfs:label "endorsement count" ;
+    rdfs:range xsd:integer ;
+    rdfs:comment "Number of endorsements" .
+
+# --- Decision Properties ---
+
+delib:leadsTo a owl:ObjectProperty ;
+    rdfs:label "leads to" ;
+    rdfs:domain delib:DeliberationProcess ;
+    rdfs:range delib:Decision ;
+    rdfs:comment "A process leads to a decision" .
+
+delib:castedBy a owl:ObjectProperty ;
+    rdfs:label "casted by" ;
+    rdfs:domain delib:Vote ;
+    rdfs:range delib:Participant ;
+    rdfs:comment "A vote casted by a participant" .
+
+# ============================================================
+# END OF ONTOLOGY
+# ============================================================

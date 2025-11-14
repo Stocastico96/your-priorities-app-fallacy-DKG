@@ -45,6 +45,7 @@ import ratings from "./controllers/ratings.cjs";
 import bulkStatusUpdates from "./controllers/bulkStatusUpdates.cjs";
 import videos from "./controllers/videos.cjs";
 import audios from "./controllers/audios.cjs";
+import analysis from "./controllers/analysis.cjs";
 import legacyPosts from "./controllers/legacyPosts.cjs";
 import legacyUsers from "./controllers/legacyUsers.cjs";
 import legacyPages from "./controllers/legacyPages.cjs";
@@ -853,6 +854,8 @@ export class YourPrioritiesApi {
     this.app.use("/api/communities", communities);
     this.app.use("/api/groups", groups);
     this.app.use("/api/posts", posts);
+    this.app.use("/api/posts", analysis);
+    this.app.use("/api/analysis", analysis);
     this.app.use("/api/points", points);
     this.app.use("/api/images", images);
     this.app.use("/api/videos", videos);

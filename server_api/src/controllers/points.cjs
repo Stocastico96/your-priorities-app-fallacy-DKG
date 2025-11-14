@@ -8,6 +8,8 @@ var async = require("async");
 const ogs = require("open-graph-scraper");
 var _ = require("lodash");
 var queue = require("../services/workers/queue.cjs");
+const rateLimit = require("express-rate-limit");
+const { getService: getArgumentEnhancementService } = require("../services/engine/moderation/argumentEnhancementService.cjs");
 
 var changePointCounter = function (pointId, column, upDown, next) {
   models.Point.findOne({
@@ -1414,6 +1416,173 @@ router.get(
         user: toJson(req.user),
       });
       res.sendStatus(404);
+    }
+  }
+);
+
+// Rate limiter for argument enhancement endpoint (10 requests per minute per user)
+const argumentEnhancementLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 10, // 10 requests per minute
+  message: "Too many enhancement requests, please try again later",
+  standardHeaders: true,
+  legacyHeaders: false,
+  // Use user ID as key if authenticated, otherwise IP
+  keyGenerator: (req) => {
+    return req.user ? `user_${req.user.id}` : req.ip;
+  }
+});
+
+/**
+ * POST /api/points/enhance
+ * Analyzes argument text and provides AI-powered enhancement suggestions
+ *
+ * Request body:
+ * - text: string (required) - The argument text to analyze
+ * - postId: number (optional) - The post context for the argument
+ * - language: string (optional) - Language code for analysis
+ *
+ * Response:
+ * - components: object - Identified argument components (claim, evidence, warrant, etc.)
+ * - suggestions: array - Specific improvement suggestions
+ * - strengthScore: number - Overall strength score (1-10)
+ * - strengthLevel: string - "weak", "moderate", or "strong"
+ * - summary: string - Brief analysis summary
+ * - metadata: object - Processing information
+ */
+router.post(
+  "/enhance",
+  auth.isLoggedInNoAnonymousCheck,
+  argumentEnhancementLimiter,
+  async function (req, res) {
+    try {
+      const { text, postId, language } = req.body;
+
+      // Validate input
+      if (!text || typeof text !== 'string') {
+        return res.status(400).json({
+          error: "Text is required and must be a string"
+        });
+      }
+
+      if (text.trim().length === 0) {
+        return res.status(400).json({
+          error: "Text cannot be empty"
+        });
+      }
+
+      // Build context
+      const context = {
+        language: language || req.headers['accept-language']?.split(',')[0] || 'en',
+        userId: req.user.id
+      };
+
+      // Add post context if provided
+      if (postId) {
+        try {
+          const post = await models.Post.findOne({
+            where: { id: postId },
+            attributes: ['id', 'name', 'description']
+          });
+
+          if (post) {
+            context.discussionTopic = post.name;
+          }
+        } catch (error) {
+          log.warn("Could not fetch post context for argument enhancement", {
+            postId,
+            error: error.message
+          });
+          // Continue without post context
+        }
+      }
+
+      // Analyze the argument
+      const enhancementService = getArgumentEnhancementService();
+      const analysis = await enhancementService.analyzeArgument(text, context);
+
+      // Log the request for analytics
+      log.info("Argument enhancement request", {
+        userId: req.user.id,
+        postId: postId || null,
+        textLength: text.length,
+        strengthScore: analysis.strengthScore,
+        suggestionCount: analysis.suggestions?.length || 0
+      });
+
+      // Optionally log to database (if tracking table exists)
+      try {
+        if (models.ArgumentEnhancement) {
+          await models.ArgumentEnhancement.create({
+            user_id: req.user.id,
+            post_id: postId || null,
+            original_text: text,
+            suggestions: analysis.suggestions,
+            strength_score: analysis.strengthScore,
+            components: analysis.components,
+            metadata: analysis.metadata
+          });
+        }
+      } catch (dbError) {
+        // Don't fail the request if database logging fails
+        log.warn("Could not log argument enhancement to database", {
+          error: dbError.message
+        });
+      }
+
+      // Return the analysis
+      res.json(analysis);
+
+    } catch (error) {
+      log.error("Argument enhancement endpoint error", {
+        error: error.message,
+        stack: error.stack,
+        userId: req.user ? req.user.id : null
+      });
+
+      res.status(500).json({
+        error: "Failed to analyze argument. Please try again.",
+        components: {},
+        suggestions: [],
+        strengthScore: 0
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/points/enhance/quick
+ * Provides quick, non-AI feedback on argument text
+ * Useful for real-time feedback as user types
+ */
+router.post(
+  "/enhance/quick",
+  auth.isLoggedInNoAnonymousCheck,
+  argumentEnhancementLimiter,
+  function (req, res) {
+    try {
+      const { text } = req.body;
+
+      if (!text || typeof text !== 'string') {
+        return res.status(400).json({
+          error: "Text is required"
+        });
+      }
+
+      const enhancementService = getArgumentEnhancementService();
+      const feedback = enhancementService.quickCheck(text);
+
+      res.json(feedback);
+
+    } catch (error) {
+      log.error("Quick enhancement check error", {
+        error: error.message,
+        userId: req.user ? req.user.id : null
+      });
+
+      res.status(500).json({
+        error: "Failed to check argument"
+      });
     }
   }
 );

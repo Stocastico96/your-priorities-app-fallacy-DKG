@@ -17,6 +17,7 @@ import "../common/yp-emoji-selector.js";
 import { YpFileUpload } from "../yp-file-upload/yp-file-upload.js";
 import { YpEmojiSelector } from "../common/yp-emoji-selector.js";
 import "../yp-point/yp-point.js";
+import "./yp-argument-assistant.js";
 import { YpFormattingHelpers } from "../common/YpFormattingHelpers.js";
 import { YpBaseElementWithLogin } from "../common/yp-base-element-with-login.js";
 //import { RangeChangedEvent } from '@lit-labs/virtualizer/Virtualizer.js';
@@ -859,6 +860,17 @@ export class YpPostPoints extends YpBaseElementWithLogin {
 
             ${mobile ? this.renderMobilePointSelection() : nothing}
 
+            ${!hideText && (type === "Up" ? this.textValueUp.length > 10 : type === "Down" ? this.textValueDown.length > 10 : this.textValueMobileUpOrDown.length > 10)
+              ? html`
+                  <yp-argument-assistant
+                    .text="${type === "Up" ? this.textValueUp : type === "Down" ? this.textValueDown : this.textValueMobileUpOrDown}"
+                    .postId="${this.post.id}"
+                    @suggestion-applied="${this._onSuggestionApplied}"
+                    @feedback-submitted="${this._onFeedbackSubmitted}"
+                  ></yp-argument-assistant>
+                `
+              : nothing}
+
             <div class="addPointFab layout horizontal center-center">
               <md-filled-button
                 ?has-static-theme="${this.hasStaticTheme}"
@@ -1097,6 +1109,31 @@ export class YpPostPoints extends YpBaseElementWithLogin {
 
   _videoDownUploaded(event: CustomEvent) {
     this.uploadedVideoDownId = event.detail.videoId;
+  }
+
+  _onSuggestionApplied(event: CustomEvent) {
+    // Handle when user applies a suggestion from the argument assistant
+    const suggestion = event.detail;
+    console.log("Suggestion applied:", suggestion);
+
+    // Could show a toast notification or take other action
+    // For now, just log it
+    window.appGlobals.activity("click", "argumentAssistant", "suggestionApplied", {
+      suggestionType: suggestion.type,
+      priority: suggestion.priority
+    });
+  }
+
+  _onFeedbackSubmitted(event: CustomEvent) {
+    // Handle feedback on argument assistant suggestions
+    const { helpful, analysis } = event.detail;
+    console.log("Feedback submitted:", helpful, analysis);
+
+    // Track feedback for analytics
+    window.appGlobals.activity("click", "argumentAssistant", helpful ? "helpful" : "notHelpful", {
+      strengthScore: analysis?.strengthScore,
+      suggestionCount: analysis?.suggestions?.length || 0
+    });
   }
 
   _videoMobileUploaded(event: CustomEvent) {

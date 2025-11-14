@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  fuseki:
+    image: stain/jena-fuseki:latest
+    container_name: your-priorities-fuseki
+    ports:
+      - "3030:3030"
+    environment:
+      - ADMIN_PASSWORD=${FUSEKI_ADMIN_PASSWORD:-admin123}
+      - JVM_ARGS=-Xmx2g
+      - FUSEKI_DATASET_1=deliberation
+    volumes:
+      - fuseki-data:/fuseki
+      - ./server_api/src/services/knowledgeGraph/ontology:/ontology:ro
+    networks:
+      - kg-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3030/$/ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  # Optional: SPARQL endpoint proxy with rate limiting
+  # Uncomment if you want additional security layer
+  # nginx-sparql:
+  #   image: nginx:alpine
+  #   container_name: sparql-proxy
+  #   ports:
+  #     - "8080:80"
+  #   volumes:
+  #     - ./deployment/nginx-sparql.conf:/etc/nginx/nginx.conf:ro
+  #   depends_on:
+  #     - fuseki
+  #   networks:
+  #     - kg-network
+  #   restart: unless-stopped
+
+volumes:
+  fuseki-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${FUSEKI_DATA_PATH:-./data/fuseki}
+
+networks:
+  kg-network:
+    driver: bridge
+
+# Usage Instructions:
+#
+# 1. Create data directory:
+#    mkdir -p ./data/fuseki
+#
+# 2. Set admin password (optional):
+#    export FUSEKI_ADMIN_PASSWORD=your-secure-password
+#
+# 3. Start Fuseki:
+#    docker-compose -f docker-compose.fuseki.yml up -d
+#
+# 4. Access Fuseki UI:
+#    http://localhost:3030
+#    Username: admin
+#    Password: admin123 (or your custom password)
+#
+# 5. Create dataset "deliberation":
+#    - Go to "Manage datasets" > "Add new dataset"
+#    - Dataset name: deliberation
+#    - Dataset type: Persistent (TDB2)
+#
+# 6. Load ontology:
+#    curl -X POST -H "Content-Type: text/turtle" \
+#      --data-binary @server_api/src/services/knowledgeGraph/ontology/deliberation-ontology.ttl \
+#      http://localhost:3030/deliberation/data
+#
+# 7. Test SPARQL query:
+#    curl -X POST http://localhost:3030/deliberation/query \
+#      --data-urlencode "query=SELECT * WHERE { ?s ?p ?o } LIMIT 10"
+#
+# 8. API Key for writes (configure in .env):
+#    FUSEKI_ADMIN_PASSWORD=your-secure-password
+#    FUSEKI_WRITE_API_KEY=your-write-api-key

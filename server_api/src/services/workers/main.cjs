@@ -17,6 +17,7 @@ const similarities = require('./similarities.cjs');
 const reports = require('./reports.cjs');
 const marketing = require('./marketing.cjs');
 const fraudManagement = require('./fraud_management.cjs');
+const psvCalculation = require('./psvCalculation.cjs');
 
 log.info("Dirname", {dirname: __dirname});
 
@@ -99,6 +100,10 @@ i18n
 
     queue.process('process-marketing', 20, function(job, done) {
       marketing.process(job.data, done);
+    });
+
+    queue.process('process-psv-calculation', 2, function(job, done) {
+      psvCalculation.process(job.data, done);
     });
 
     import(
